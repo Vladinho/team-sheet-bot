@@ -5,7 +5,8 @@ const {
   handleCreateGame, 
   handleEndGame,
   handleMessage, 
-  handleCallbackQuery 
+  handleCallbackQuery,
+  restoreStateFromMessage
 } = require('./handlers');
 
 // Конфигурация
@@ -70,6 +71,30 @@ bot.onText(/\/end_game/, (msg) => {
   }
   
   handleEndGame(bot, msg, gameSessions, userStates);
+});
+
+// Команда восстановления состояния (только для админа)
+bot.onText(/\/restore_state/, (msg) => {
+  const userId = msg.from.id;
+  
+  if (userId !== ADMIN_ID) {
+    bot.sendMessage(msg.chat.id, 'У вас нет прав для восстановления состояния.');
+    return;
+  }
+  
+  // Проверяем, есть ли уже активная игра
+  const chatId = msg.chat.id;
+  const existingGame = gameSessions.get(chatId);
+  
+  if (existingGame) {
+    bot.sendMessage(chatId, 'Активная игра уже существует. Сначала завершите текущую игру командой /end_game');
+    return;
+  }
+  
+  bot.sendMessage(chatId, 
+    'Отправьте текст сообщения с записью на игру для восстановления состояния.\n\n' +
+    'Скопируйте и отправьте текст основного сообщения с записью на игру.'
+  );
 });
 
 // Обработка текстовых сообщений
