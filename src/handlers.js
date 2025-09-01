@@ -1,5 +1,24 @@
 const GameSession = require('./GameSession');
 
+// Функция для восстановления состояния из текста сообщения
+async function restoreStateFromMessage(bot, msg, gameSessions, userStates, friends) {
+  const chatId = msg.chat.id;
+  const text = msg.text;
+  
+  if (!text) return false;
+  
+  // Пытаемся восстановить состояние из текста
+  const gameSession = GameSession.parseFromMessage(text, chatId, msg.message_id, friends);
+  
+  if (gameSession) {
+    gameSessions.set(chatId, gameSession);
+    console.log(`Состояние восстановлено из сообщения для chatId: ${chatId}`);
+    return true;
+  }
+  
+  return false;
+}
+
 // Обработка команды /start
 function handleStart(bot, msg, gameSessions, userStates, adminId) {
   const chatId = msg.chat.id;
@@ -75,6 +94,13 @@ async function handleMessage(bot, msg, gameSessions, userStates, friends) {
   const text = msg.text;
 
   if (!text || text.startsWith('/')) return;
+
+  // Пытаемся восстановить состояние из текста сообщения
+  const restored = await restoreStateFromMessage(bot, msg, gameSessions, userStates, friends);
+  if (restored) {
+    console.log(`Состояние восстановлено из текстового сообщения для chatId: ${chatId}`);
+    return;
+  }
 
   // Обработка команд для друзей
   const addFriendMatch = text.match(/^\+\s+(.+)$/);
@@ -203,6 +229,7 @@ async function handleCallbackQuery(bot, query, gameSessions, userStates, adminId
   const userId = query.from.id;
   const data = query.data;
   const messageId = query.message.message_id;
+  const messageText = query.message.text;
 
   // Проверяем права администратора для завершения игры
   if (data === 'end_game') {
@@ -211,7 +238,17 @@ async function handleCallbackQuery(bot, query, gameSessions, userStates, adminId
       return;
     }
   } else {
-    const gameSession = gameSessions.get(chatId);
+    let gameSession = gameSessions.get(chatId);
+    
+    // Если состояние не найдено, пытаемся восстановить из текста сообщения
+    if (!gameSession && messageText) {
+      gameSession = GameSession.parseFromMessage(messageText, chatId, messageId, friends);
+      if (gameSession) {
+        gameSessions.set(chatId, gameSession);
+        console.log(`Состояние восстановлено из callback для chatId: ${chatId}`);
+      }
+    }
+    
     if (!gameSession) {
       bot.answerCallbackQuery(query.id, { text: 'Игра не найдена.' });
       return;
@@ -329,5 +366,6 @@ module.exports = {
   handleEndGame,
   handleMessage,
   handleCallbackQuery,
-  updateGameMessage
+  updateGameMessage,
+  restoreStateFromMessage
 };
