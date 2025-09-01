@@ -115,14 +115,20 @@ async function handleMessage(bot, msg, gameSessions, userStates, friends) {
         // Добавляем всех друзей в список игроков
         gameSession.addFriendsToPlayers(friends);
         
+        // Удаляем предыдущее дублированное сообщение
+        await gameSession.deletePreviousMessage(bot);
+        
         // Отправляем новое сообщение с обновленным списком
         const message = gameSession.generateMessage();
         const keyboard = gameSession.generateKeyboard();
         
-        await bot.sendMessage(chatId, message, {
+        const newMessage = await bot.sendMessage(chatId, message, {
           parse_mode: 'HTML',
           reply_markup: keyboard.length > 0 ? { inline_keyboard: keyboard } : undefined
         });
+        
+        // Обновляем ID последнего сообщения
+        gameSession.updateLastMessage(newMessage.message_id);
         
         console.log('Отправлено новое сообщение с обновленным списком друзей');
       } catch (error) {
@@ -164,14 +170,20 @@ async function handleMessage(bot, msg, gameSessions, userStates, friends) {
         gameSession.removeFriendsOfPlayer(userId);
         gameSession.addFriendsToPlayers(friends);
         
+        // Удаляем предыдущее дублированное сообщение
+        await gameSession.deletePreviousMessage(bot);
+        
         // Отправляем новое сообщение с обновленным списком
         const message = gameSession.generateMessage();
         const keyboard = gameSession.generateKeyboard();
         
-        await bot.sendMessage(chatId, message, {
+        const newMessage = await bot.sendMessage(chatId, message, {
           parse_mode: 'HTML',
           reply_markup: keyboard.length > 0 ? { inline_keyboard: keyboard } : undefined
         });
+        
+        // Обновляем ID последнего сообщения
+        gameSession.updateLastMessage(newMessage.message_id);
         
         console.log('Отправлено новое сообщение с обновленным списком друзей');
       } catch (error) {
@@ -200,8 +212,14 @@ async function handleCallbackQuery(bot, query, gameSessions, userStates, adminId
     }
   } else {
     const gameSession = gameSessions.get(chatId);
-    if (!gameSession || gameSession.messageId !== messageId) {
-      bot.answerCallbackQuery(query.id, { text: 'Игра не найдена или устарела.' });
+    if (!gameSession) {
+      bot.answerCallbackQuery(query.id, { text: 'Игра не найдена.' });
+      return;
+    }
+    
+    // Проверяем, что игра активна (кроме команды end_game)
+    if (data !== 'end_game' && !gameSession.isActive) {
+      bot.answerCallbackQuery(query.id, { text: 'Игра уже завершена.' });
       return;
     }
   }
@@ -278,7 +296,7 @@ async function updateGameMessage(bot, gameSession) {
     const message = gameSession.generateMessage();
     const keyboard = gameSession.generateKeyboard();
     
-    console.log(`Обновление сообщения игры: chatId=${gameSession.chatId}, messageId=${gameSession.messageId}`);
+    console.log(`Обновление сообщения игры: chatId=${gameSession.chatId}, lastMessageId=${gameSession.lastMessageId}`);
     console.log(`Сообщение: ${message.substring(0, 100)}...`);
     console.log(`Клавиатура: ${JSON.stringify(keyboard)}`);
     
@@ -286,7 +304,7 @@ async function updateGameMessage(bot, gameSession) {
     try {
       await bot.editMessageText(message, {
         chat_id: gameSession.chatId,
-        message_id: gameSession.messageId,
+        message_id: gameSession.lastMessageId, // Обновляем последнее сообщение
         parse_mode: 'HTML',
         reply_markup: keyboard.length > 0 ? { inline_keyboard: keyboard } : undefined
       });

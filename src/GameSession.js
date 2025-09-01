@@ -1,7 +1,8 @@
 class GameSession {
   constructor(chatId, messageId, playersLimit = 10, isAdmin = false, gameDescription = '', friends = null) {
     this.chatId = chatId;
-    this.messageId = messageId;
+    this.messageId = messageId; // ID основного сообщения
+    this.lastMessageId = messageId; // ID последнего сообщения (для обновления)
     this.playersLimit = playersLimit;
     this.players = []; // [{userId, username, firstName, lastName}]
     this.reserve = []; // [{userId, username, firstName, lastName}]
@@ -160,6 +161,9 @@ class GameSession {
       });
     }
 
+    // Добавляем объяснение по управлению друзьями
+    message += `• Для записи друга в ответном сообщении: + Имя (например: + Иван)\n`;
+    message += `• Для удаления друга: - Имя (например: - Иван)\n`;
     return message;
   }
 
@@ -168,6 +172,23 @@ class GameSession {
     const player = this.players.find(p => p.userId === userId) || 
                   this.reserve.find(p => p.userId === userId);
     return player ? (player.firstName || player.username || `User${userId}`) : `User${userId}`;
+  }
+
+  // Метод для обновления последнего сообщения
+  updateLastMessage(messageId) {
+    this.lastMessageId = messageId;
+  }
+
+  // Метод для удаления предыдущего сообщения
+  async deletePreviousMessage(bot) {
+    if (this.lastMessageId !== this.messageId) {
+      try {
+        await bot.deleteMessage(this.chatId, this.lastMessageId);
+        console.log(`Удалено предыдущее сообщение: ${this.lastMessageId}`);
+      } catch (error) {
+        console.log(`Ошибка удаления предыдущего сообщения: ${error.message}`);
+      }
+    }
   }
 
   generateKeyboard() {
