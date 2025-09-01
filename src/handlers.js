@@ -16,12 +16,19 @@ function handleStart(bot, msg, gameSessions, userStates, adminId) {
       'Привет! Ты администратор. Используй /create_game <количество> <описание> для создания записи на игру.\n\nПример: /create_game 10 Футбол в 18:00'
     );
   } else {
-    bot.sendMessage(chatId, 'Привет! Ожидай создания записи на игру от администратора.');
+    bot.sendMessage(chatId, 
+      'Привет! Ожидай создания записи на игру от администратора.\n\n' +
+      '🤝 <b>Управление друзьями:</b>\n' +
+      '• Добавить друга: + Имя\n' +
+      '• Удалить друга: - Имя\n' +
+      '• Посмотреть список: /friends', 
+      { parse_mode: 'HTML' }
+    );
   }
 }
 
 // Команда создания игры (только для админа)
-async function handleCreateGame(bot, msg, gameSessions, userStates, playersLimit, gameDescription) {
+async function handleCreateGame(bot, msg, gameSessions, userStates, playersLimit, gameDescription, friends) {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   const GROUP_ID = process.env.GROUP_ID ? parseInt(process.env.GROUP_ID) : null;
@@ -37,7 +44,7 @@ async function handleCreateGame(bot, msg, gameSessions, userStates, playersLimit
   const gameMessage = await bot.sendMessage(chatId, '⚽ Запись на игру');
   console.log(`Создано временное сообщение: messageId=${gameMessage.message_id}`);
   
-  const gameSession = new GameSession(chatId, gameMessage.message_id, playersLimit, true, gameDescription);
+  const gameSession = new GameSession(chatId, gameMessage.message_id, playersLimit, true, gameDescription, friends);
   gameSessions.set(chatId, gameSession);
   
   console.log(`GameSession создан, обновляем сообщение...`);
@@ -62,12 +69,84 @@ function handleEndGame(bot, msg, gameSessions, userStates) {
 }
 
 // Обработка текстовых сообщений
-async function handleMessage(bot, msg, gameSessions, userStates) {
+async function handleMessage(bot, msg, gameSessions, userStates, friends) {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   const text = msg.text;
 
   if (!text || text.startsWith('/')) return;
+
+  // Обработка команд для друзей
+  const addFriendMatch = text.match(/^\+\s+(.+)$/);
+  const removeFriendMatch = text.match(/^\-\s+(.+)$/);
+
+  if (addFriendMatch) {
+    const friendName = addFriendMatch[1].trim();
+    if (friendName.length === 0) {
+      bot.sendMessage(chatId, 'Пожалуйста, укажите имя друга.');
+      return;
+    }
+
+    // Инициализируем массив друзей для пользователя, если его нет
+    if (!friends.has(userId)) {
+      friends.set(userId, []);
+    }
+
+    const userFriends = friends.get(userId);
+    
+    // Проверяем, не добавлен ли уже такой друг
+    if (userFriends.find(f => f.name.toLowerCase() === friendName.toLowerCase())) {
+      bot.sendMessage(chatId, `Друг "${friendName}" уже добавлен в ваш список.`);
+      return;
+    }
+
+    // Добавляем друга
+    userFriends.push({
+      name: friendName,
+      addedBy: userId
+    });
+
+    bot.sendMessage(chatId, `✅ Друг "${friendName}" добавлен в ваш список!`);
+    
+    // Обновляем сообщение игры, если есть активная игра
+    const gameSession = gameSessions.get(chatId);
+    if (gameSession && gameSession.isActive) {
+      await updateGameMessage(bot, gameSession);
+    }
+    return;
+  }
+
+  if (removeFriendMatch) {
+    const friendName = removeFriendMatch[1].trim();
+    if (friendName.length === 0) {
+      bot.sendMessage(chatId, 'Пожалуйста, укажите имя друга для удаления.');
+      return;
+    }
+
+    if (!friends.has(userId)) {
+      bot.sendMessage(chatId, 'У вас нет списка друзей.');
+      return;
+    }
+
+    const userFriends = friends.get(userId);
+    const friendIndex = userFriends.findIndex(f => f.name.toLowerCase() === friendName.toLowerCase());
+    
+    if (friendIndex === -1) {
+      bot.sendMessage(chatId, `Друг "${friendName}" не найден в вашем списке.`);
+      return;
+    }
+
+    // Удаляем друга
+    userFriends.splice(friendIndex, 1);
+    bot.sendMessage(chatId, `❌ Друг "${friendName}" удален из вашего списка.`);
+    
+    // Обновляем сообщение игры, если есть активная игра
+    const gameSession = gameSessions.get(chatId);
+    if (gameSession && gameSession.isActive) {
+      await updateGameMessage(bot, gameSession);
+    }
+    return;
+  }
 
   // Обычные текстовые сообщения не обрабатываются
   // Все команды обрабатываются через bot.onText
@@ -164,14 +243,23 @@ async function updateGameMessage(bot, gameSession) {
     console.log(`Сообщение: ${message.substring(0, 100)}...`);
     console.log(`Клавиатура: ${JSON.stringify(keyboard)}`);
     
-    await bot.editMessageText(message, {
-      chat_id: gameSession.chatId,
-      message_id: gameSession.messageId,
-      parse_mode: 'HTML',
-      reply_markup: keyboard.length > 0 ? { inline_keyboard: keyboard } : undefined
-    });
-    
-    console.log('Сообщение успешно обновлено');
+    // Проверяем, есть ли изменения в сообщении
+    try {
+      await bot.editMessageText(message, {
+        chat_id: gameSession.chatId,
+        message_id: gameSession.messageId,
+        parse_mode: 'HTML',
+        reply_markup: keyboard.length > 0 ? { inline_keyboard: keyboard } : undefined
+      });
+      console.log('Сообщение успешно обновлено');
+    } catch (editError) {
+      if (editError.response && editError.response.statusCode === 400 && 
+          editError.response.body && editError.response.body.description === 'message is not modified') {
+        console.log('Сообщение не изменилось, обновление не требуется');
+      } else {
+        throw editError; // Перебрасываем другие ошибки
+      }
+    }
   } catch (error) {
     console.error('Ошибка обновления сообщения:', error);
     console.error('Детали ошибки:', error.response?.data || error.message);

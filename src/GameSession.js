@@ -1,5 +1,5 @@
 class GameSession {
-  constructor(chatId, messageId, playersLimit = 10, isAdmin = false, gameDescription = '') {
+  constructor(chatId, messageId, playersLimit = 10, isAdmin = false, gameDescription = '', friends = null) {
     this.chatId = chatId;
     this.messageId = messageId;
     this.playersLimit = playersLimit;
@@ -8,6 +8,7 @@ class GameSession {
     this.isActive = true;
     this.isAdmin = isAdmin;
     this.gameDescription = gameDescription;
+    this.friends = friends; // Map для хранения друзей
   }
 
   addPlayer(userId, username, firstName, lastName) {
@@ -72,6 +73,33 @@ class GameSession {
 
     if (reserveList) {
       message += `⏳ <b>Резерв:</b>\n${reserveList}\n\n`;
+    }
+
+    // Добавляем список друзей, если есть
+    if (this.friends && this.friends.size > 0) {
+      let friendsList = '';
+      for (const [userId, userFriends] of this.friends) {
+        if (userFriends.length > 0) {
+          // Ищем пользователя среди игроков или резерва
+          const player = this.players.find(p => p.userId === userId) || 
+                        this.reserve.find(p => p.userId === userId);
+          
+          if (player) {
+            // Если пользователь записан на игру, показываем его друзей
+            const playerName = player.firstName || player.username || `User${userId}`;
+            const friendsNames = userFriends.map(f => f.name).join(', ');
+            friendsList += `👥 ${playerName}: ${friendsNames}\n`;
+          } else {
+            // Если пользователь не записан, но у него есть друзья, показываем их
+            const userFriendsNames = userFriends.map(f => f.name).join(', ');
+            friendsList += `🤝 Друзья: ${userFriendsNames}\n`;
+          }
+        }
+      }
+      
+      if (friendsList) {
+        message += `🤝 <b>Друзья:</b>\n${friendsList}\n`;
+      }
     }
 
     return message;

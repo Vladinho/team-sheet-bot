@@ -19,10 +19,29 @@ const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 // Хранилище данных (в памяти, без БД)
 const gameSessions = new Map(); // chatId -> gameData
 const userStates = new Map(); // userId -> state
+const friends = new Map(); // userId -> [{name, addedBy}]
 
 // Обработка команды /start
 bot.onText(/\/start/, (msg) => {
   handleStart(bot, msg, gameSessions, userStates, ADMIN_ID);
+});
+
+// Команда просмотра друзей
+bot.onText(/\/friends/, (msg) => {
+  const userId = msg.from.id;
+  const userFriends = friends.get(userId) || [];
+  
+  if (userFriends.length === 0) {
+    bot.sendMessage(msg.chat.id, 'У вас пока нет друзей в списке.\n\nДобавить друга: + Имя\nУдалить друга: - Имя');
+  } else {
+    const friendsList = userFriends.map(f => `• ${f.name}`).join('\n');
+    bot.sendMessage(msg.chat.id, 
+      `🤝 <b>Ваши друзья:</b>\n\n${friendsList}\n\n` +
+      `Добавить друга: + Имя\n` +
+      `Удалить друга: - Имя`, 
+      { parse_mode: 'HTML' }
+    );
+  }
 });
 
 // Команда создания игры (только для админа)
@@ -37,7 +56,7 @@ bot.onText(/\/create_game\s+(\d+)\s+(.+)/, (msg, match) => {
   const playersLimit = parseInt(match[1]);
   const gameDescription = match[2];
   
-  handleCreateGame(bot, msg, gameSessions, userStates, playersLimit, gameDescription);
+  handleCreateGame(bot, msg, gameSessions, userStates, playersLimit, gameDescription, friends);
 });
 
 // Команда завершения игры (только для админа)
@@ -54,7 +73,7 @@ bot.onText(/\/end_game/, (msg) => {
 
 // Обработка текстовых сообщений
 bot.on('message', (msg) => {
-  handleMessage(bot, msg, gameSessions, userStates);
+  handleMessage(bot, msg, gameSessions, userStates, friends);
 });
 
 // Обработка callback запросов
