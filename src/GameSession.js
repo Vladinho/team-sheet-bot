@@ -71,38 +71,37 @@ class GameSession {
     
     for (const [userId, userFriends] of friends) {
       if (userFriends.length > 0) {
-        // Ищем пользователя среди игроков или резерва
+        // Получаем имя пользователя (если он записан) или используем ID
+        let playerName = `User${userId}`;
         const player = this.players.find(p => p.userId === userId) || 
                       this.reserve.find(p => p.userId === userId);
         
         if (player) {
-          // Если пользователь записан на игру, добавляем его друзей
-          const playerName = player.firstName || player.username || `User${userId}`;
+          playerName = player.firstName || player.username || `User${userId}`;
+        }
+        
+        for (const friend of userFriends) {
+          // Проверяем, не добавлен ли уже такой друг
+          const existingFriend = this.players.find(p => 
+            p.friendOf === userId && p.firstName === friend.name
+          ) || this.reserve.find(p => 
+            p.friendOf === userId && p.firstName === friend.name
+          );
           
-          for (const friend of userFriends) {
-            // Проверяем, не добавлен ли уже такой друг
-            const friendName = `${friend.name} (друг ${playerName})`;
-            const existingFriend = this.players.find(p => 
-              p.friendOf === userId && p.firstName === friend.name
-            ) || this.reserve.find(p => 
-              p.friendOf === userId && p.firstName === friend.name
-            );
+          if (!existingFriend) {
+            const friendPlayer = {
+              userId: `friend_${userId}_${friend.name}`,
+              username: null,
+              firstName: friend.name,
+              lastName: null,
+              friendOf: userId,
+              isFriend: true
+            };
             
-            if (!existingFriend) {
-              const friendPlayer = {
-                userId: `friend_${userId}_${friend.name}`,
-                username: null,
-                firstName: friend.name,
-                lastName: null,
-                friendOf: userId,
-                isFriend: true
-              };
-              
-              if (this.players.length < this.playersLimit) {
-                this.players.push(friendPlayer);
-              } else {
-                this.reserve.push(friendPlayer);
-              }
+            if (this.players.length < this.playersLimit) {
+              this.players.push(friendPlayer);
+            } else {
+              this.reserve.push(friendPlayer);
             }
           }
         }

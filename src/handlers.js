@@ -111,7 +111,13 @@ async function handleMessage(bot, msg, gameSessions, userStates, friends) {
     // Обновляем сообщение игры, если есть активная игра
     const gameSession = gameSessions.get(chatId);
     if (gameSession && gameSession.isActive) {
-      await updateGameMessage(bot, gameSession);
+      try {
+        // Добавляем всех друзей в список игроков
+        gameSession.addFriendsToPlayers(friends);
+        await updateGameMessage(bot, gameSession);
+      } catch (error) {
+        console.log('Ошибка обновления сообщения игры:', error.message);
+      }
     }
     return;
   }
@@ -143,7 +149,14 @@ async function handleMessage(bot, msg, gameSessions, userStates, friends) {
     // Обновляем сообщение игры, если есть активная игра
     const gameSession = gameSessions.get(chatId);
     if (gameSession && gameSession.isActive) {
-      await updateGameMessage(bot, gameSession);
+      try {
+        // Удаляем всех друзей из списка игроков и добавляем заново
+        gameSession.removeFriendsOfPlayer(userId);
+        gameSession.addFriendsToPlayers(friends);
+        await updateGameMessage(bot, gameSession);
+      } catch (error) {
+        console.log('Ошибка обновления сообщения игры:', error.message);
+      }
     }
     return;
   }
