@@ -1,11 +1,13 @@
 class GameSession {
-  constructor(chatId, messageId, playersLimit = 10) {
+  constructor(chatId, messageId, playersLimit = 10, isAdmin = false, gameDescription = '') {
     this.chatId = chatId;
     this.messageId = messageId;
     this.playersLimit = playersLimit;
     this.players = []; // [{userId, username, firstName, lastName}]
     this.reserve = []; // [{userId, username, firstName, lastName}]
     this.isActive = true;
+    this.isAdmin = isAdmin;
+    this.gameDescription = gameDescription;
   }
 
   addPlayer(userId, username, firstName, lastName) {
@@ -55,6 +57,11 @@ class GameSession {
     ).join('\n');
 
     let message = `⚽ <b>Запись на игру</b>\n\n`;
+    
+    if (this.gameDescription) {
+      message += `📝 <b>Описание:</b>\n${this.gameDescription}\n\n`;
+    }
+    
     message += `📊 <b>Статистика:</b>\n`;
     message += `• Игроков: ${this.players.length}/${this.playersLimit}\n`;
     message += `• В резерве: ${this.reserve.length}\n\n`;
@@ -83,6 +90,13 @@ class GameSession {
       if (this.players.length >= this.playersLimit) {
         keyboard.push([
           { text: '⏳ Записаться в резерв', callback_data: 'register_reserve' }
+        ]);
+      }
+
+      // Кнопки администратора (только для админов)
+      if (this.isAdmin) {
+        keyboard.push([
+          { text: '🔚 Завершить игру', callback_data: 'end_game' }
         ]);
       }
     }

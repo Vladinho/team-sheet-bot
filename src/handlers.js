@@ -1,28 +1,19 @@
 const GameSession = require('./GameSession');
 
-// Состояния пользователя
-const UserState = {
-  IDLE: 'idle',
-  CREATING_GAME: 'creating_game',
-  ENTERING_PLAYERS_LIMIT: 'entering_players_limit'
-};
-
 // Обработка команды /start
-function handleStart(bot, msg, gameSessions, userStates) {
+function handleStart(bot, msg, gameSessions, userStates, adminId) {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   const GROUP_ID = process.env.GROUP_ID ? parseInt(process.env.GROUP_ID) : null;
-  const ADMIN_ID = parseInt(process.env.ADMIN_ID);
   
   if (GROUP_ID && chatId !== GROUP_ID) {
     bot.sendMessage(chatId, 'Этот бот работает только в определенной группе.');
     return;
   }
 
-  if (userId === ADMIN_ID) {
+  if (userId === adminId) {
     bot.sendMessage(chatId, 
-      'Привет! Ты администратор. Используй /create_game для создания записи на игру.',
-      { reply_markup: { keyboard: [['/create_game']], resize_keyboard: true } }
+      'Привет! Ты администратор. Используй /create_game <количество> <описание> для создания записи на игру.\n\nПример: /create_game 10 Футбол в 18:00'
     );
   } else {
     bot.sendMessage(chatId, 'Привет! Ожидай создания записи на игру от администратора.');
@@ -30,46 +21,34 @@ function handleStart(bot, msg, gameSessions, userStates) {
 }
 
 // Команда создания игры (только для админа)
-function handleCreateGame(bot, msg, gameSessions, userStates) {
+async function handleCreateGame(bot, msg, gameSessions, userStates, playersLimit, gameDescription) {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
-  const ADMIN_ID = parseInt(process.env.ADMIN_ID);
   const GROUP_ID = process.env.GROUP_ID ? parseInt(process.env.GROUP_ID) : null;
 
-  if (userId !== ADMIN_ID) {
-    bot.sendMessage(chatId, 'У вас нет прав для создания игры.');
-    return;
-  }
+  console.log(`Создание игры: chatId=${chatId}, playersLimit=${playersLimit}, description="${gameDescription}"`);
 
   if (GROUP_ID && chatId !== GROUP_ID) {
     bot.sendMessage(chatId, 'Игры можно создавать только в определенной группе.');
     return;
   }
 
-  userStates.set(userId, UserState.CREATING_GAME);
+  // Создаем пустое сообщение и сразу заменяем его содержимым игры
+  const gameMessage = await bot.sendMessage(chatId, '⚽ Запись на игру');
+  console.log(`Создано временное сообщение: messageId=${gameMessage.message_id}`);
   
-  const keyboard = [
-    [{ text: '10 (по умолчанию)', callback_data: 'create_game_10' }],
-    [{ text: 'Другое количество', callback_data: 'create_game_custom' }],
-    [{ text: 'Отмена', callback_data: 'cancel_create_game' }]
-  ];
+  const gameSession = new GameSession(chatId, gameMessage.message_id, playersLimit, true, gameDescription);
+  gameSessions.set(chatId, gameSession);
   
-  bot.sendMessage(chatId, 
-    'Создание записи на игру. Выберите количество мест:',
-    { reply_markup: { inline_keyboard: keyboard } }
-  );
+  console.log(`GameSession создан, обновляем сообщение...`);
+  await updateGameMessage(bot, gameSession);
+  console.log(`Игра создана успешно`);
 }
 
 // Команда завершения игры (только для админа)
 function handleEndGame(bot, msg, gameSessions, userStates) {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
-  const ADMIN_ID = parseInt(process.env.ADMIN_ID);
-
-  if (userId !== ADMIN_ID) {
-    bot.sendMessage(chatId, 'У вас нет прав для завершения игры.');
-    return;
-  }
 
   const gameSession = gameSessions.get(chatId);
   if (!gameSession) {
@@ -90,93 +69,23 @@ async function handleMessage(bot, msg, gameSessions, userStates) {
 
   if (!text || text.startsWith('/')) return;
 
-  const state = userStates.get(userId);
-  
-  if (state === UserState.CREATING_GAME) {
-    if (text === 'Отмена') {
-      userStates.delete(userId);
-      bot.sendMessage(chatId, ' ', { reply_markup: { remove_keyboard: true } }).then(msg => {
-        setTimeout(() => bot.deleteMessage(chatId, msg.message_id), 100);
-      });
-      return;
-    }
-
-    // Сразу удаляем сообщение с количеством мест для чистоты чата
-    bot.deleteMessage(chatId, msg.message_id);
-
-    let playersLimit = 10;
-    if (text !== '10 (по умолчанию)') {
-      const limit = parseInt(text);
-      if (isNaN(limit) || limit <= 0) {
-        bot.sendMessage(chatId, 'Пожалуйста, введите корректное число мест.').then(msg => {
-          setTimeout(() => bot.deleteMessage(chatId, msg.message_id), 5000);
-        });
-        return;
-      }
-      playersLimit = limit;
-    }
-
-    // Создаем игру
-    const gameMessage = await bot.sendMessage(chatId, 'Создание игры...');
-    const gameSession = new GameSession(chatId, gameMessage.message_id, playersLimit);
-    gameSessions.set(chatId, gameSession);
-    
-    await updateGameMessage(bot, gameSession);
-    userStates.delete(userId);
-    
-    // Убираем сообщение с клавиатурой и не отправляем подтверждение
-    bot.sendMessage(chatId, ' ', { reply_markup: { remove_keyboard: true } }).then(msg => {
-      setTimeout(() => bot.deleteMessage(chatId, msg.message_id), 100);
-    });
-  }
-  
-  else if (state === UserState.ENTERING_PLAYERS_LIMIT) {
-    if (text === 'Отмена') {
-      userStates.delete(userId);
-      bot.sendMessage(chatId, ' ', { reply_markup: { remove_keyboard: true } }).then(msg => {
-        setTimeout(() => bot.deleteMessage(chatId, msg.message_id), 100);
-      });
-      return;
-    }
-
-    // Сразу удаляем сообщение с количеством мест для чистоты чата
-    bot.deleteMessage(chatId, msg.message_id);
-
-    const limit = parseInt(text);
-    if (isNaN(limit) || limit <= 0) {
-      bot.sendMessage(chatId, 'Пожалуйста, введите корректное число мест.').then(msg => {
-        setTimeout(() => bot.deleteMessage(chatId, msg.message_id), 5000);
-      });
-      return;
-    }
-
-    // Создаем игру с указанным количеством мест
-    const gameMessage = await bot.sendMessage(chatId, 'Создание игры...');
-    const gameSession = new GameSession(chatId, gameMessage.message_id, limit);
-    gameSessions.set(chatId, gameSession);
-    
-    await updateGameMessage(bot, gameSession);
-    userStates.delete(userId);
-    
-    // Убираем сообщение с клавиатурой
-    bot.sendMessage(chatId, ' ', { reply_markup: { remove_keyboard: true } }).then(msg => {
-      setTimeout(() => bot.deleteMessage(chatId, msg.message_id), 100);
-    });
-  }
-  
-
+  // Обычные текстовые сообщения не обрабатываются
+  // Все команды обрабатываются через bot.onText
 }
 
 // Обработка callback запросов
-async function handleCallbackQuery(bot, query, gameSessions, userStates) {
+async function handleCallbackQuery(bot, query, gameSessions, userStates, adminId) {
   const chatId = query.message.chat.id;
   const userId = query.from.id;
   const data = query.data;
   const messageId = query.message.message_id;
 
-  // Проверяем, не является ли это callback для создания игры
-  if (data.startsWith('create_game_') || data === 'cancel_create_game') {
-    // Это callback для создания игры, пропускаем проверку
+  // Проверяем права администратора для завершения игры
+  if (data === 'end_game') {
+    if (userId !== adminId) {
+      bot.answerCallbackQuery(query.id, { text: 'У вас нет прав для завершения игры.' });
+      return;
+    }
   } else {
     const gameSession = gameSessions.get(chatId);
     if (!gameSession || gameSession.messageId !== messageId) {
@@ -190,37 +99,6 @@ async function handleCallbackQuery(bot, query, gameSessions, userStates) {
   const lastName = query.from.last_name;
 
   switch (data) {
-    case 'create_game_10':
-      // Создаем игру с 10 местами
-      const gameMessage = await bot.sendMessage(chatId, 'Создание игры...');
-      const gameSession = new GameSession(chatId, gameMessage.message_id, 10);
-      gameSessions.set(chatId, gameSession);
-      
-      await updateGameMessage(bot, gameSession);
-      userStates.delete(userId);
-      
-      // Удаляем сообщение с выбором
-      bot.deleteMessage(chatId, query.message.message_id);
-      bot.answerCallbackQuery(query.id, { text: 'Игра создана!' });
-      break;
-
-    case 'create_game_custom':
-      // Переключаемся на ввод произвольного количества
-      userStates.set(userId, UserState.ENTERING_PLAYERS_LIMIT);
-      bot.editMessageText('Введите количество мест:', {
-        chat_id: chatId,
-        message_id: query.message.message_id,
-        reply_markup: { keyboard: [['Отмена']], resize_keyboard: true }
-      });
-      bot.answerCallbackQuery(query.id);
-      break;
-
-    case 'cancel_create_game':
-      userStates.delete(userId);
-      bot.deleteMessage(chatId, query.message.message_id);
-      bot.answerCallbackQuery(query.id, { text: 'Создание игры отменено' });
-      break;
-
     case 'register':
       const currentGameSession = gameSessions.get(chatId);
       if (currentGameSession.players.find(p => p.userId === userId) || 
@@ -260,35 +138,16 @@ async function handleCallbackQuery(bot, query, gameSessions, userStates) {
       }
       break;
 
-    
-
-    case 'enter_friend_name':
-      userStates.set(userId, UserState.ENTERING_FRIEND_NAME);
-      bot.deleteMessage(chatId, query.message.message_id);
-      bot.sendMessage(chatId, 
-        'Введите имя друга:',
-        { reply_markup: { keyboard: [['Отмена']], resize_keyboard: true } }
-      );
-      bot.answerCallbackQuery(query.id);
+    case 'end_game':
+      const endGameSession = gameSessions.get(chatId);
+      if (endGameSession) {
+        endGameSession.isActive = false;
+        await updateGameMessage(bot, endGameSession);
+        bot.answerCallbackQuery(query.id, { text: 'Игра завершена!' });
+      } else {
+        bot.answerCallbackQuery(query.id, { text: 'Игра не найдена.' });
+      }
       break;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
     default:
       break;
@@ -301,19 +160,25 @@ async function updateGameMessage(bot, gameSession) {
     const message = gameSession.generateMessage();
     const keyboard = gameSession.generateKeyboard();
     
+    console.log(`Обновление сообщения игры: chatId=${gameSession.chatId}, messageId=${gameSession.messageId}`);
+    console.log(`Сообщение: ${message.substring(0, 100)}...`);
+    console.log(`Клавиатура: ${JSON.stringify(keyboard)}`);
+    
     await bot.editMessageText(message, {
       chat_id: gameSession.chatId,
       message_id: gameSession.messageId,
       parse_mode: 'HTML',
       reply_markup: keyboard.length > 0 ? { inline_keyboard: keyboard } : undefined
     });
+    
+    console.log('Сообщение успешно обновлено');
   } catch (error) {
     console.error('Ошибка обновления сообщения:', error);
+    console.error('Детали ошибки:', error.response?.data || error.message);
   }
 }
 
 module.exports = {
-  UserState,
   handleStart,
   handleCreateGame,
   handleEndGame,
