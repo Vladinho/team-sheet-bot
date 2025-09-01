@@ -126,38 +126,38 @@ class GameSession {
 
 
   generateMessage() {
-    const playersList = this.players.map(p => {
-      if (p.isFriend) {
-        return `👤 ${p.firstName} (друг ${this.getPlayerNameById(p.friendOf)})`;
-      } else {
-        return `👤 ${p.firstName || p.username || `User${p.userId}`}`;
-      }
-    }).join('\n');
-
-    const reserveList = this.reserve.map(p => {
-      if (p.isFriend) {
-        return `⏳ ${p.firstName} (друг ${this.getPlayerNameById(p.friendOf)})`;
-      } else {
-        return `⏳ ${p.firstName || p.username || `User${p.userId}`}`;
-      }
-    }).join('\n');
-
     let message = `⚽ <b>Запись на игру</b>\n\n`;
     
     if (this.gameDescription) {
       message += `📝 <b>Описание:</b>\n${this.gameDescription}\n\n`;
     }
     
-    message += `📊 <b>Статистика:</b>\n`;
-    message += `• Игроков: ${this.players.length}/${this.playersLimit}\n`;
-    message += `• В резерве: ${this.reserve.length}\n\n`;
-
-    if (playersList) {
-      message += `👥 <b>Записались:</b>\n${playersList}\n\n`;
+    message += `👥 <b>Список игроков:</b>\n`;
+    
+    // Создаем нумерованный список с пустыми местами
+    for (let i = 1; i <= this.playersLimit; i++) {
+      const player = this.players[i - 1];
+      if (player) {
+        if (player.isFriend) {
+          message += `${i}. ${player.firstName} (друг ${this.getPlayerNameById(player.friendOf)})\n`;
+        } else {
+          message += `${i}. ${player.firstName || player.username || `User${player.userId}`}\n`;
+        }
+      } else {
+        message += `${i}.\n`;
+      }
     }
-
-    if (reserveList) {
-      message += `⏳ <b>Резерв:</b>\n${reserveList}\n\n`;
+    
+    // Добавляем резерв, если есть
+    if (this.reserve.length > 0) {
+      message += `\n⏳ <b>Резерв:</b>\n`;
+      this.reserve.forEach((player, index) => {
+        if (player.isFriend) {
+          message += `${index + 1}. ${player.firstName} (друг ${this.getPlayerNameById(player.friendOf)})\n`;
+        } else {
+          message += `${index + 1}. ${player.firstName || player.username || `User${player.userId}`}\n`;
+        }
+      });
     }
 
     return message;
