@@ -14,9 +14,21 @@ class GameSession {
   addPlayer(userId, username, firstName, lastName) {
     if (this.players.length < this.playersLimit) {
       this.players.push({ userId, username, firstName, lastName });
+      
+      // Добавляем друзей этого игрока
+      if (this.friends && this.friends.has(userId)) {
+        this.addFriendsToPlayers(this.friends);
+      }
+      
       return true;
     } else {
       this.reserve.push({ userId, username, firstName, lastName });
+      
+      // Добавляем друзей этого игрока
+      if (this.friends && this.friends.has(userId)) {
+        this.addFriendsToPlayers(this.friends);
+      }
+      
       return false;
     }
   }
@@ -26,6 +38,9 @@ class GameSession {
     const playerIndex = this.players.findIndex(p => p.userId === userId);
     if (playerIndex !== -1) {
       this.players.splice(playerIndex, 1);
+      
+      // Удаляем друзей этого игрока
+      this.removeFriendsOfPlayer(userId);
       
       // Перемещаем первого из резерва
       if (this.reserve.length > 0) {
@@ -40,22 +55,93 @@ class GameSession {
     const reserveIndex = this.reserve.findIndex(p => p.userId === userId);
     if (reserveIndex !== -1) {
       this.reserve.splice(reserveIndex, 1);
+      
+      // Удаляем друзей этого игрока
+      this.removeFriendsOfPlayer(userId);
+      
       return true;
     }
 
     return false;
   }
 
+  // Добавляем друзей в список игроков
+  addFriendsToPlayers(friends) {
+    if (!friends || friends.size === 0) return;
+    
+    for (const [userId, userFriends] of friends) {
+      if (userFriends.length > 0) {
+        // Ищем пользователя среди игроков или резерва
+        const player = this.players.find(p => p.userId === userId) || 
+                      this.reserve.find(p => p.userId === userId);
+        
+        if (player) {
+          // Если пользователь записан на игру, добавляем его друзей
+          const playerName = player.firstName || player.username || `User${userId}`;
+          
+          for (const friend of userFriends) {
+            // Проверяем, не добавлен ли уже такой друг
+            const friendName = `${friend.name} (друг ${playerName})`;
+            const existingFriend = this.players.find(p => 
+              p.friendOf === userId && p.firstName === friend.name
+            ) || this.reserve.find(p => 
+              p.friendOf === userId && p.firstName === friend.name
+            );
+            
+            if (!existingFriend) {
+              const friendPlayer = {
+                userId: `friend_${userId}_${friend.name}`,
+                username: null,
+                firstName: friend.name,
+                lastName: null,
+                friendOf: userId,
+                isFriend: true
+              };
+              
+              if (this.players.length < this.playersLimit) {
+                this.players.push(friendPlayer);
+              } else {
+                this.reserve.push(friendPlayer);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Удаляем друзей при удалении основного игрока
+  removeFriendsOfPlayer(userId) {
+    // Удаляем друзей из основных игроков
+    this.players = this.players.filter(p => p.friendOf !== userId);
+    
+    // Удаляем друзей из резерва
+    this.reserve = this.reserve.filter(p => p.friendOf !== userId);
+    
+    // Перемещаем игроков из резерва, если есть место
+    while (this.players.length < this.playersLimit && this.reserve.length > 0) {
+      const reservePlayer = this.reserve.shift();
+      this.players.push(reservePlayer);
+    }
+  }
 
 
   generateMessage() {
-    const playersList = this.players.map(p => 
-      `👤 ${p.firstName || p.username || `User${p.userId}`}`
-    ).join('\n');
+    const playersList = this.players.map(p => {
+      if (p.isFriend) {
+        return `👤 ${p.firstName} (друг ${this.getPlayerNameById(p.friendOf)})`;
+      } else {
+        return `👤 ${p.firstName || p.username || `User${p.userId}`}`;
+      }
+    }).join('\n');
 
-    const reserveList = this.reserve.map(p => 
-      `⏳ ${p.firstName || p.username || `User${p.userId}`} (резерв)`
-    ).join('\n');
+    const reserveList = this.reserve.map(p => {
+      if (p.isFriend) {
+        return `⏳ ${p.firstName} (друг ${this.getPlayerNameById(p.friendOf)}) (резерв)`;
+      } else {
+        return `⏳ ${p.firstName || p.username || `User${p.userId}`} (резерв)`;
+      }
+    }).join('\n');
 
     let message = `⚽ <b>Запись на игру</b>\n\n`;
     
@@ -75,34 +161,14 @@ class GameSession {
       message += `⏳ <b>Резерв:</b>\n${reserveList}\n\n`;
     }
 
-    // Добавляем список друзей, если есть
-    if (this.friends && this.friends.size > 0) {
-      let friendsList = '';
-      for (const [userId, userFriends] of this.friends) {
-        if (userFriends.length > 0) {
-          // Ищем пользователя среди игроков или резерва
-          const player = this.players.find(p => p.userId === userId) || 
-                        this.reserve.find(p => p.userId === userId);
-          
-          if (player) {
-            // Если пользователь записан на игру, показываем его друзей
-            const playerName = player.firstName || player.username || `User${userId}`;
-            const friendsNames = userFriends.map(f => f.name).join(', ');
-            friendsList += `👥 ${playerName}: ${friendsNames}\n`;
-          } else {
-            // Если пользователь не записан, но у него есть друзья, показываем их
-            const userFriendsNames = userFriends.map(f => f.name).join(', ');
-            friendsList += `🤝 Друзья: ${userFriendsNames}\n`;
-          }
-        }
-      }
-      
-      if (friendsList) {
-        message += `🤝 <b>Друзья:</b>\n${friendsList}\n`;
-      }
-    }
-
     return message;
+  }
+
+  // Вспомогательный метод для получения имени игрока по ID
+  getPlayerNameById(userId) {
+    const player = this.players.find(p => p.userId === userId) || 
+                  this.reserve.find(p => p.userId === userId);
+    return player ? (player.firstName || player.username || `User${userId}`) : `User${userId}`;
   }
 
   generateKeyboard() {

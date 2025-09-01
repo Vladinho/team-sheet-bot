@@ -22,8 +22,24 @@ const userStates = new Map(); // userId -> state
 const friends = new Map(); // userId -> [{name, addedBy}]
 
 // Обработка команды /start
-bot.onText(/\/start/, (msg) => {
-  handleStart(bot, msg, gameSessions, userStates, ADMIN_ID);
+bot.onText(/\/start(?:\s+(\d+)\s+(.+))?/, (msg, match) => {
+  if (match && match[1] && match[2]) {
+    // Если переданы параметры - создаем игру (только для админа)
+    const userId = msg.from.id;
+    
+    if (userId !== ADMIN_ID) {
+      bot.sendMessage(msg.chat.id, 'У вас нет прав для создания игры.');
+      return;
+    }
+    
+    const playersLimit = parseInt(match[1]);
+    const gameDescription = match[2];
+    
+    handleCreateGame(bot, msg, gameSessions, userStates, playersLimit, gameDescription, friends);
+  } else {
+    // Обычный /start без параметров
+    handleStart(bot, msg, gameSessions, userStates, ADMIN_ID);
+  }
 });
 
 // Команда просмотра друзей
@@ -42,21 +58,6 @@ bot.onText(/\/friends/, (msg) => {
       { parse_mode: 'HTML' }
     );
   }
-});
-
-// Команда создания игры (только для админа)
-bot.onText(/\/create_game\s+(\d+)\s+(.+)/, (msg, match) => {
-  const userId = msg.from.id;
-  
-  if (userId !== ADMIN_ID) {
-    bot.sendMessage(msg.chat.id, 'У вас нет прав для создания игры.');
-    return;
-  }
-  
-  const playersLimit = parseInt(match[1]);
-  const gameDescription = match[2];
-  
-  handleCreateGame(bot, msg, gameSessions, userStates, playersLimit, gameDescription, friends);
 });
 
 // Команда завершения игры (только для админа)
@@ -78,7 +79,7 @@ bot.on('message', (msg) => {
 
 // Обработка callback запросов
 bot.on('callback_query', (query) => {
-  handleCallbackQuery(bot, query, gameSessions, userStates, ADMIN_ID);
+  handleCallbackQuery(bot, query, gameSessions, userStates, ADMIN_ID, friends);
 });
 
 // Обработка ошибок

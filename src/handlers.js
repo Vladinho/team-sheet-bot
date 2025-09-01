@@ -13,7 +13,7 @@ function handleStart(bot, msg, gameSessions, userStates, adminId) {
 
   if (userId === adminId) {
     bot.sendMessage(chatId, 
-      'Привет! Ты администратор. Используй /create_game <количество> <описание> для создания записи на игру.\n\nПример: /create_game 10 Футбол в 18:00'
+      'Привет! Ты администратор. Используй /start <количество> <описание> для создания записи на игру.\n\nПример: /start 10 Футбол в 18:00'
     );
   } else {
     bot.sendMessage(chatId, 
@@ -153,7 +153,7 @@ async function handleMessage(bot, msg, gameSessions, userStates, friends) {
 }
 
 // Обработка callback запросов
-async function handleCallbackQuery(bot, query, gameSessions, userStates, adminId) {
+async function handleCallbackQuery(bot, query, gameSessions, userStates, adminId, friends) {
   const chatId = query.message.chat.id;
   const userId = query.from.id;
   const data = query.data;
@@ -202,6 +202,12 @@ async function handleCallbackQuery(bot, query, gameSessions, userStates, adminId
       }
 
       reserveGameSession.reserve.push({ userId, username, firstName, lastName });
+      
+      // Добавляем друзей этого пользователя в список игроков
+      if (reserveGameSession.friends && reserveGameSession.friends.has(userId)) {
+        reserveGameSession.addFriendsToPlayers(reserveGameSession.friends);
+      }
+      
       await updateGameMessage(bot, reserveGameSession);
       bot.answerCallbackQuery(query.id, { text: 'Вы добавлены в резерв!' });
       break;
