@@ -136,9 +136,9 @@ class GameSession {
 
     const reserveList = this.reserve.map(p => {
       if (p.isFriend) {
-        return `⏳ ${p.firstName} (друг ${this.getPlayerNameById(p.friendOf)}) (резерв)`;
+        return `⏳ ${p.firstName} (друг ${this.getPlayerNameById(p.friendOf)})`;
       } else {
-        return `⏳ ${p.firstName || p.username || `User${p.userId}`} (резерв)`;
+        return `⏳ ${p.firstName || p.username || `User${p.userId}`}`;
       }
     }).join('\n');
 
