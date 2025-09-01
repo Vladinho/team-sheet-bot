@@ -4,8 +4,7 @@ const GameSession = require('./GameSession');
 const UserState = {
   IDLE: 'idle',
   CREATING_GAME: 'creating_game',
-  ENTERING_PLAYERS_LIMIT: 'entering_players_limit',
-  ENTERING_FRIEND_NAME: 'entering_friend_name'
+  ENTERING_PLAYERS_LIMIT: 'entering_players_limit'
 };
 
 // Обработка команды /start
@@ -49,9 +48,15 @@ function handleCreateGame(bot, msg, gameSessions, userStates) {
 
   userStates.set(userId, UserState.CREATING_GAME);
   
+  const keyboard = [
+    [{ text: '10 (по умолчанию)', callback_data: 'create_game_10' }],
+    [{ text: 'Другое количество', callback_data: 'create_game_custom' }],
+    [{ text: 'Отмена', callback_data: 'cancel_create_game' }]
+  ];
+  
   bot.sendMessage(chatId, 
-    'Создание записи на игру. Введите количество мест (по умолчанию 10):',
-    { reply_markup: { keyboard: [['10 (по умолчанию)', 'Отмена']], resize_keyboard: true } }
+    'Создание записи на игру. Выберите количество мест:',
+    { reply_markup: { inline_keyboard: keyboard } }
   );
 }
 
@@ -74,7 +79,7 @@ function handleEndGame(bot, msg, gameSessions, userStates) {
 
   gameSession.isActive = false;
   updateGameMessage(bot, gameSession);
-  bot.sendMessage(chatId, 'Игра завершена! Запись закрыта.');
+  // Не отправляем сообщение о завершении - просто обновляем основное сообщение
 }
 
 // Обработка текстовых сообщений
@@ -90,15 +95,22 @@ async function handleMessage(bot, msg, gameSessions, userStates) {
   if (state === UserState.CREATING_GAME) {
     if (text === 'Отмена') {
       userStates.delete(userId);
-      bot.sendMessage(chatId, 'Создание игры отменено.', { reply_markup: { remove_keyboard: true } });
+      bot.sendMessage(chatId, ' ', { reply_markup: { remove_keyboard: true } }).then(msg => {
+        setTimeout(() => bot.deleteMessage(chatId, msg.message_id), 100);
+      });
       return;
     }
+
+    // Сразу удаляем сообщение с количеством мест для чистоты чата
+    bot.deleteMessage(chatId, msg.message_id);
 
     let playersLimit = 10;
     if (text !== '10 (по умолчанию)') {
       const limit = parseInt(text);
       if (isNaN(limit) || limit <= 0) {
-        bot.sendMessage(chatId, 'Пожалуйста, введите корректное число мест.');
+        bot.sendMessage(chatId, 'Пожалуйста, введите корректное число мест.').then(msg => {
+          setTimeout(() => bot.deleteMessage(chatId, msg.message_id), 5000);
+        });
         return;
       }
       playersLimit = limit;
@@ -112,34 +124,47 @@ async function handleMessage(bot, msg, gameSessions, userStates) {
     await updateGameMessage(bot, gameSession);
     userStates.delete(userId);
     
-    bot.sendMessage(chatId, 'Игра создана!', { reply_markup: { remove_keyboard: true } });
+    // Убираем сообщение с клавиатурой и не отправляем подтверждение
+    bot.sendMessage(chatId, ' ', { reply_markup: { remove_keyboard: true } }).then(msg => {
+      setTimeout(() => bot.deleteMessage(chatId, msg.message_id), 100);
+    });
   }
   
-  else if (state === UserState.ENTERING_FRIEND_NAME) {
-    const gameSession = gameSessions.get(chatId);
-    if (!gameSession) {
-      userStates.delete(userId);
-      bot.sendMessage(chatId, 'Игра не найдена.', { reply_markup: { remove_keyboard: true } });
-      return;
-    }
-
+  else if (state === UserState.ENTERING_PLAYERS_LIMIT) {
     if (text === 'Отмена') {
       userStates.delete(userId);
-      bot.sendMessage(chatId, 'Добавление друга отменено.', { reply_markup: { remove_keyboard: true } });
+      bot.sendMessage(chatId, ' ', { reply_markup: { remove_keyboard: true } }).then(msg => {
+        setTimeout(() => bot.deleteMessage(chatId, msg.message_id), 100);
+      });
       return;
     }
 
-    const success = gameSession.addFriend(userId, text, userId);
-    if (success) {
-      await updateGameMessage(bot, gameSession);
-      bot.sendMessage(chatId, `Друг "${text}" добавлен!`, { reply_markup: { remove_keyboard: true } });
-    } else {
-      const maxFriends = userId === parseInt(process.env.ADMIN_ID) ? 'неограниченно' : '2';
-      bot.sendMessage(chatId, `Нельзя добавить больше друзей (максимум ${maxFriends}).`);
+    // Сразу удаляем сообщение с количеством мест для чистоты чата
+    bot.deleteMessage(chatId, msg.message_id);
+
+    const limit = parseInt(text);
+    if (isNaN(limit) || limit <= 0) {
+      bot.sendMessage(chatId, 'Пожалуйста, введите корректное число мест.').then(msg => {
+        setTimeout(() => bot.deleteMessage(chatId, msg.message_id), 5000);
+      });
+      return;
     }
+
+    // Создаем игру с указанным количеством мест
+    const gameMessage = await bot.sendMessage(chatId, 'Создание игры...');
+    const gameSession = new GameSession(chatId, gameMessage.message_id, limit);
+    gameSessions.set(chatId, gameSession);
     
+    await updateGameMessage(bot, gameSession);
     userStates.delete(userId);
+    
+    // Убираем сообщение с клавиатурой
+    bot.sendMessage(chatId, ' ', { reply_markup: { remove_keyboard: true } }).then(msg => {
+      setTimeout(() => bot.deleteMessage(chatId, msg.message_id), 100);
+    });
   }
+  
+
 }
 
 // Обработка callback запросов
@@ -149,10 +174,15 @@ async function handleCallbackQuery(bot, query, gameSessions, userStates) {
   const data = query.data;
   const messageId = query.message.message_id;
 
-  const gameSession = gameSessions.get(chatId);
-  if (!gameSession || gameSession.messageId !== messageId) {
-    bot.answerCallbackQuery(query.id, { text: 'Игра не найдена или устарела.' });
-    return;
+  // Проверяем, не является ли это callback для создания игры
+  if (data.startsWith('create_game_') || data === 'cancel_create_game') {
+    // Это callback для создания игры, пропускаем проверку
+  } else {
+    const gameSession = gameSessions.get(chatId);
+    if (!gameSession || gameSession.messageId !== messageId) {
+      bot.answerCallbackQuery(query.id, { text: 'Игра не найдена или устарела.' });
+      return;
+    }
   }
 
   const username = query.from.username;
@@ -160,44 +190,81 @@ async function handleCallbackQuery(bot, query, gameSessions, userStates) {
   const lastName = query.from.last_name;
 
   switch (data) {
+    case 'create_game_10':
+      // Создаем игру с 10 местами
+      const gameMessage = await bot.sendMessage(chatId, 'Создание игры...');
+      const gameSession = new GameSession(chatId, gameMessage.message_id, 10);
+      gameSessions.set(chatId, gameSession);
+      
+      await updateGameMessage(bot, gameSession);
+      userStates.delete(userId);
+      
+      // Удаляем сообщение с выбором
+      bot.deleteMessage(chatId, query.message.message_id);
+      bot.answerCallbackQuery(query.id, { text: 'Игра создана!' });
+      break;
+
+    case 'create_game_custom':
+      // Переключаемся на ввод произвольного количества
+      userStates.set(userId, UserState.ENTERING_PLAYERS_LIMIT);
+      bot.editMessageText('Введите количество мест:', {
+        chat_id: chatId,
+        message_id: query.message.message_id,
+        reply_markup: { keyboard: [['Отмена']], resize_keyboard: true }
+      });
+      bot.answerCallbackQuery(query.id);
+      break;
+
+    case 'cancel_create_game':
+      userStates.delete(userId);
+      bot.deleteMessage(chatId, query.message.message_id);
+      bot.answerCallbackQuery(query.id, { text: 'Создание игры отменено' });
+      break;
+
     case 'register':
-      if (gameSession.players.find(p => p.userId === userId) || 
-          gameSession.reserve.find(p => p.userId === userId)) {
+      const currentGameSession = gameSessions.get(chatId);
+      if (currentGameSession.players.find(p => p.userId === userId) || 
+          currentGameSession.reserve.find(p => p.userId === userId)) {
         bot.answerCallbackQuery(query.id, { text: 'Вы уже записаны!' });
         return;
       }
 
-      const isMain = gameSession.addPlayer(userId, username, firstName, lastName);
-      await updateGameMessage(bot, gameSession);
+      const isMain = currentGameSession.addPlayer(userId, username, firstName, lastName);
+      await updateGameMessage(bot, currentGameSession);
       bot.answerCallbackQuery(query.id, { 
         text: isMain ? 'Вы записаны!' : 'Вы добавлены в резерв!' 
       });
       break;
 
     case 'register_reserve':
-      if (gameSession.players.find(p => p.userId === userId) || 
-          gameSession.reserve.find(p => p.userId === userId)) {
+      const reserveGameSession = gameSessions.get(chatId);
+      if (reserveGameSession.players.find(p => p.userId === userId) || 
+          reserveGameSession.reserve.find(p => p.userId === userId)) {
         bot.answerCallbackQuery(query.id, { text: 'Вы уже записаны!' });
         return;
       }
 
-      gameSession.reserve.push({ userId, username, firstName, lastName });
-      await updateGameMessage(bot, gameSession);
+      reserveGameSession.reserve.push({ userId, username, firstName, lastName });
+      await updateGameMessage(bot, reserveGameSession);
       bot.answerCallbackQuery(query.id, { text: 'Вы добавлены в резерв!' });
       break;
 
     case 'unregister':
-      const removed = gameSession.removePlayer(userId);
+      const unregisterGameSession = gameSessions.get(chatId);
+      const removed = unregisterGameSession.removePlayer(userId);
       if (removed) {
-        await updateGameMessage(bot, gameSession);
+        await updateGameMessage(bot, unregisterGameSession);
         bot.answerCallbackQuery(query.id, { text: 'Запись отменена!' });
       } else {
         bot.answerCallbackQuery(query.id, { text: 'Вы не были записаны!' });
       }
       break;
 
-    case 'add_friend':
+    
+
+    case 'enter_friend_name':
       userStates.set(userId, UserState.ENTERING_FRIEND_NAME);
+      bot.deleteMessage(chatId, query.message.message_id);
       bot.sendMessage(chatId, 
         'Введите имя друга:',
         { reply_markup: { keyboard: [['Отмена']], resize_keyboard: true } }
@@ -205,42 +272,25 @@ async function handleCallbackQuery(bot, query, gameSessions, userStates) {
       bot.answerCallbackQuery(query.id);
       break;
 
-    case 'remove_friend':
-      const friends = gameSession.getFriendsList(userId);
-      if (friends.length === 0) {
-        bot.answerCallbackQuery(query.id, { text: 'У вас нет записанных друзей!' });
-        return;
-      }
 
-      const keyboard = friends.map(friend => [{ text: `🗑 ${friend.name}`, callback_data: `remove_friend_${friend.name}` }]);
-      keyboard.push([{ text: 'Отмена', callback_data: 'cancel_remove_friend' }]);
-      
-      bot.sendMessage(chatId, 
-        'Выберите друга для удаления:',
-        { reply_markup: { inline_keyboard: keyboard } }
-      );
-      bot.answerCallbackQuery(query.id);
-      break;
 
-    case 'cancel_remove_friend':
-      bot.deleteMessage(chatId, query.message.message_id);
-      bot.answerCallbackQuery(query.id);
-      break;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     default:
-      if (data.startsWith('remove_friend_')) {
-        const friendName = data.replace('remove_friend_', '');
-        const removed = gameSession.removeFriend(userId, friendName);
-        
-        if (removed) {
-          await updateGameMessage(bot, gameSession);
-          bot.answerCallbackQuery(query.id, { text: `Друг "${friendName}" удален!` });
-        } else {
-          bot.answerCallbackQuery(query.id, { text: 'Друг не найден!' });
-        }
-        
-        bot.deleteMessage(chatId, query.message.message_id);
-      }
       break;
   }
 }
