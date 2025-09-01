@@ -1,0 +1,20 @@
+{
+  "name": "team-sheet-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot for football game registration",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.64.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "keywords": ["telegram", "bot", "football", "registration"],
+  "author": "",
+  "license": "MIT"
+}
