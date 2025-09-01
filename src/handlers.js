@@ -114,9 +114,19 @@ async function handleMessage(bot, msg, gameSessions, userStates, friends) {
       try {
         // Добавляем всех друзей в список игроков
         gameSession.addFriendsToPlayers(friends);
-        await updateGameMessage(bot, gameSession);
+        
+        // Отправляем новое сообщение с обновленным списком
+        const message = gameSession.generateMessage();
+        const keyboard = gameSession.generateKeyboard();
+        
+        await bot.sendMessage(chatId, message, {
+          parse_mode: 'HTML',
+          reply_markup: keyboard.length > 0 ? { inline_keyboard: keyboard } : undefined
+        });
+        
+        console.log('Отправлено новое сообщение с обновленным списком друзей');
       } catch (error) {
-        console.log('Ошибка обновления сообщения игры:', error.message);
+        console.log('Ошибка отправки нового сообщения:', error.message);
       }
     }
     return;
@@ -153,9 +163,19 @@ async function handleMessage(bot, msg, gameSessions, userStates, friends) {
         // Удаляем всех друзей из списка игроков и добавляем заново
         gameSession.removeFriendsOfPlayer(userId);
         gameSession.addFriendsToPlayers(friends);
-        await updateGameMessage(bot, gameSession);
+        
+        // Отправляем новое сообщение с обновленным списком
+        const message = gameSession.generateMessage();
+        const keyboard = gameSession.generateKeyboard();
+        
+        await bot.sendMessage(chatId, message, {
+          parse_mode: 'HTML',
+          reply_markup: keyboard.length > 0 ? { inline_keyboard: keyboard } : undefined
+        });
+        
+        console.log('Отправлено новое сообщение с обновленным списком друзей');
       } catch (error) {
-        console.log('Ошибка обновления сообщения игры:', error.message);
+        console.log('Ошибка отправки нового сообщения:', error.message);
       }
     }
     return;
