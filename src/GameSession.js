@@ -87,6 +87,7 @@ class GameSession {
     // Добавляем объяснение по управлению игроками
     message += `• Для добавления игрока: + Имя (например: + Иван)\n`;
     message += `• Для удаления игрока: - Имя (например: - Иван)\n`;
+    
     return message;
   }
 
@@ -125,6 +126,11 @@ class GameSession {
         ]);
       }
 
+      // Кнопка для обновления состояния игры
+      keyboard.push([
+        { text: '🔄 Обновить', callback_data: 'refresh_state' }
+      ]);
+
       // Кнопки администратора (только для админов)
       // Кнопка "Завершить игру" удалена
     }
@@ -156,48 +162,51 @@ class GameSession {
       const playersList = playersListMatch[1];
       const playerLines = playersList.split('\n').filter(line => line.trim());
       
-      // Определяем лимит игроков по количеству строк
-      const playersLimit = playerLines.length;
+      // Определяем лимит игроков - считаем только строки с номерами (1., 2., 3., etc.)
+      // Исключаем строки с инструкциями (начинающиеся с •)
+      const numberedLines = playerLines.filter(line => /^\d+\./.test(line));
+      const playersLimit = numberedLines.length;
 
-      // Парсим основных игроков
+      // Парсим основных игроков - только строки с номерами
       const players = [];
-      for (const line of playerLines) {
-        // Парсим строку с учетом userId в скобках
+      for (const line of numberedLines) {
+        // Парсим строку с учетом userId в скобках - требуем наличие символов после точки
         const match = line.match(/^\d+\.\s+(.+?)(?:\s+\(добавлен пользователем\)|\s+\(id:(\d+)\))?$/);
-        if (match) {
+        
+        if (match && match[1] && match[1].trim() !== '') {
           const playerName = match[1].trim();
+          
           const isFriend = line.includes('(добавлен пользователем)');
           const userId = match[2]; // userId может быть во 2-й группе
           
-          if (playerName && playerName !== '') {
-            if (isFriend) {
-              // Это игрок, добавленный пользователем
-              players.push({
-                userId: `friend_${Date.now()}_${playerName}`,
-                username: null,
-                firstName: playerName,
-                lastName: null,
-                isFriend: true
-              });
-            } else if (userId) {
-              // Это обычный игрок с userId
-              players.push({
-                userId: parseInt(userId), // Преобразуем в число
-                username: null,
-                firstName: playerName,
-                lastName: null
-              });
-            } else {
-              // Fallback для старых сообщений без userId
-              players.push({
-                userId: `restored_${Date.now()}_${playerName}`,
-                username: null,
-                firstName: playerName,
-                lastName: null
-              });
-            }
+          if (isFriend) {
+            // Это игрок, добавленный пользователем
+            players.push({
+              userId: `friend_${Date.now()}_${playerName}`,
+              username: null,
+              firstName: playerName,
+              lastName: null,
+              isFriend: true
+            });
+          } else if (userId) {
+            // Это обычный игрок с userId
+            players.push({
+              userId: parseInt(userId), // Преобразуем в число
+              username: null,
+              firstName: playerName,
+              lastName: null
+            });
+          } else {
+            // Fallback для старых сообщений без userId
+            players.push({
+              userId: `restored_${Date.now()}_${playerName}`,
+              username: null,
+              firstName: playerName,
+              lastName: null
+            });
           }
         }
+        // Если match[1] пустой или содержит только пробелы, игрок не добавляется
       }
 
       // Парсим резерв
@@ -208,42 +217,41 @@ class GameSession {
         const reserveLines = reserveList.split('\n').filter(line => line.trim());
         
         for (const line of reserveLines) {
-          // Парсим строку с учетом userId в скобках
+          // Парсим строку с учетом userId в скобках - требуем наличие символов после точки
           const match = line.match(/^\d+\.\s+(.+?)(?:\s+\(добавлен пользователем\)|\s+\(id:(\d+)\))?$/);
-          if (match) {
+          if (match && match[1] && match[1].trim() !== '') {
             const playerName = match[1].trim();
             const isFriend = line.includes('(добавлен пользователем)');
             const userId = match[2]; // userId может быть во 2-й группе
             
-            if (playerName && playerName !== '') {
-              if (isFriend) {
-                // Это игрок в резерве, добавленный пользователем
-                reserve.push({
-                  userId: `friend_reserve_${Date.now()}_${playerName}`,
-                  username: null,
-                  firstName: playerName,
-                  lastName: null,
-                  isFriend: true
-                });
-              } else if (userId) {
-                // Это обычный игрок в резерве с userId
-                reserve.push({
-                  userId: parseInt(userId), // Преобразуем в число
-                  username: null,
-                  firstName: playerName,
-                  lastName: null
-                });
-              } else {
-                // Fallback для старых сообщений без userId
-                reserve.push({
-                  userId: `reserve_${Date.now()}_${playerName}`,
-                  username: null,
-                  firstName: playerName,
-                  lastName: null
-                });
-              }
+            if (isFriend) {
+              // Это игрок в резерве, добавленный пользователем
+              reserve.push({
+                userId: `friend_reserve_${Date.now()}_${playerName}`,
+                username: null,
+                firstName: playerName,
+                lastName: null,
+                isFriend: true
+              });
+            } else if (userId) {
+              // Это обычный игрок в резерве с userId
+              reserve.push({
+                userId: parseInt(userId), // Преобразуем в число
+                username: null,
+                firstName: playerName,
+                lastName: null
+              });
+            } else {
+              // Fallback для старых сообщений без userId
+              reserve.push({
+                userId: `reserve_${Date.now()}_${playerName}`,
+                username: null,
+                firstName: playerName,
+                lastName: null
+              });
             }
           }
+          // Если match[1] пустой или содержит только пробелы, игрок не добавляется
         }
       }
 
