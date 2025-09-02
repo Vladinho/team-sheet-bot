@@ -112,6 +112,7 @@ class GameSession {
   generateKeyboard() {
     const keyboard = [];
     
+
     if (this.isActive) {
       // Основная клавиатура
       keyboard.push([
@@ -132,6 +133,11 @@ class GameSession {
         ]);
       }
     }
+
+    // Кнопка обновления состояния (всегда доступна)
+    keyboard.push([
+      { text: '🔄 Обновить', callback_data: 'refresh_state' }
+    ]);
 
     return keyboard;
   }

@@ -307,6 +307,25 @@ async function handleCallbackQuery(bot, query, gameSessions, userStates, adminId
       }
       break;
 
+    case 'refresh_state':
+      // Восстанавливаем состояние из текста сообщения
+      if (messageText) {
+        const restoredGameSession = GameSession.parseFromMessage(messageText, chatId, messageId);
+        if (restoredGameSession) {
+          gameSessions.set(chatId, restoredGameSession);
+          console.log(`Состояние восстановлено по кнопке "Обновить" для chatId: ${chatId}`);
+          
+          // Обновляем сообщение с восстановленным состоянием
+          await updateGameMessage(bot, restoredGameSession);
+          bot.answerCallbackQuery(query.id, { text: 'Состояние обновлено!' });
+        } else {
+          bot.answerCallbackQuery(query.id, { text: 'Не удалось восстановить состояние.' });
+        }
+      } else {
+        bot.answerCallbackQuery(query.id, { text: 'Текст сообщения не найден.' });
+      }
+      break;
+
     default:
       break;
   }
