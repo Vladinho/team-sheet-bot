@@ -129,12 +129,13 @@ async function handleMessage(bot, msg, gameSessions, userStates) {
     };
 
     // Добавляем в основной список или резерв
+    const addedByUser = msg.from.first_name || msg.from.username || `User${userId}`;
     if (gameSession.players.length < gameSession.playersLimit) {
       gameSession.players.push(newPlayer);
-      bot.sendMessage(chatId, `✅ Игрок "${playerName}" добавлен в основной состав!`);
+      bot.sendMessage(chatId, `✅ Игрок "${playerName}" добавлен в основной состав пользователем ${addedByUser} (id:${userId})!`);
     } else {
       gameSession.reserve.push(newPlayer);
-      bot.sendMessage(chatId, `✅ Игрок "${playerName}" добавлен в резерв!`);
+      bot.sendMessage(chatId, `✅ Игрок "${playerName}" добавлен в резерв пользователем ${addedByUser} (id:${userId})!`);
     }
 
     // Обновляем сообщение игры
@@ -177,6 +178,8 @@ async function handleMessage(bot, msg, gameSessions, userStates) {
 
     // Удаляем игрока
     if (isMainPlayer) {
+      const removedPlayer = gameSession.players[playerIndex];
+      const playerId = removedPlayer.userId;
       gameSession.players.splice(playerIndex, 1);
       
       // Перемещаем первого из резерва, если есть место
@@ -185,10 +188,12 @@ async function handleMessage(bot, msg, gameSessions, userStates) {
         gameSession.players.push(reservePlayer);
       }
       
-      bot.sendMessage(chatId, `❌ Игрок "${playerName}" удален из основного состава!`);
+      bot.sendMessage(chatId, `❌ Игрок "${playerName}" (id:${playerId}) удален из основного состава!`);
     } else {
+      const removedPlayer = gameSession.reserve[playerIndex];
+      const playerId = removedPlayer.userId;
       gameSession.reserve.splice(playerIndex, 1);
-      bot.sendMessage(chatId, `❌ Игрок "${playerName}" удален из резерва!`);
+      bot.sendMessage(chatId, `❌ Игрок "${playerName}" (id:${playerId}) удален из резерва!`);
     }
 
     // Обновляем сообщение игры
@@ -222,6 +227,7 @@ async function handleMessage(bot, msg, gameSessions, userStates) {
 
     // Удаляем пользователя
     if (isMainPlayer) {
+      const playerName = msg.from.first_name || msg.from.username || `User${userId}`;
       gameSession.players.splice(playerIndex, 1);
       
       // Перемещаем первого из резерва, если есть место
@@ -230,10 +236,11 @@ async function handleMessage(bot, msg, gameSessions, userStates) {
         gameSession.players.push(reservePlayer);
       }
       
-      bot.sendMessage(chatId, '❌ Ваша запись отменена!');
+      bot.sendMessage(chatId, `❌ Запись ${playerName} (id:${userId}) отменена!`);
     } else {
+      const playerName = msg.from.first_name || msg.from.username || `User${userId}`;
       gameSession.reserve.splice(playerIndex, 1);
-      bot.sendMessage(chatId, '❌ Ваша запись в резерве отменена!');
+      bot.sendMessage(chatId, `❌ Запись ${playerName} (id:${userId}) в резерве отменена!`);
     }
 
     // Обновляем сообщение игры
