@@ -201,7 +201,7 @@ async function handleMessage(bot, msg, gameSessions, userStates) {
     // Получаем активную игру
     const gameSession = gameSessions.get(chatId);
     if (!gameSession || !gameSession.isActive) {
-      bot.sendMessage(chatId, 'Нет активной игры для отмены записи.');
+      bot.sendMessage(chatId, 'Нет активной игры для отмены записи. Нажмите на кнопку Обновить');
       return;
     }
 
