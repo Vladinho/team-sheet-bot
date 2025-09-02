@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  telegram-bot:
+    build: .
+    container_name: team-sheet-bot
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - BOT_TOKEN=${BOT_TOKEN}
+      - ADMIN_ID=${ADMIN_ID}
+      - GROUP_ID=${GROUP_ID}
+    volumes:
+      # Монтируем папку data для сохранения состояния
+      - ./data:/app/data
+      # Монтируем логи
+      - ./logs:/app/logs
+    networks:
+      - bot-network
+    # Для webhook режима (если понадобится)
+    # ports:
+    #   - "3000:3000"
+
+  # Redis для хранения данных (опционально, для продакшена)
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: bot-redis
+  #   restart: unless-stopped
+  #   volumes:
+  #     - redis-data:/data
+  #   networks:
+  #     - bot-network
+
+networks:
+  bot-network:
+    driver: bridge
+
+# volumes:
+#   redis-data:
