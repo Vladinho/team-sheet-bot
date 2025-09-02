@@ -3,7 +3,6 @@ const TelegramBot = require('node-telegram-bot-api');
 const { 
   handleStart, 
   handleCreateGame, 
-  handleEndGame,
   handleMessage, 
   handleCallbackQuery,
   restoreStateFromMessage
@@ -44,17 +43,7 @@ bot.onText(/\/start(?:\s+(\d+)\s+(.+))?/, (msg, match) => {
 
 
 
-// Команда завершения игры (только для админа)
-bot.onText(/\/end_game/, (msg) => {
-  const userId = msg.from.id;
-  
-  if (userId !== ADMIN_ID) {
-    bot.sendMessage(msg.chat.id, 'У вас нет прав для завершения игры.');
-    return;
-  }
-  
-  handleEndGame(bot, msg, gameSessions, userStates);
-});
+
 
 // Команда восстановления состояния (только для админа)
 bot.onText(/\/restore_state/, (msg) => {
@@ -70,7 +59,7 @@ bot.onText(/\/restore_state/, (msg) => {
   const existingGame = gameSessions.get(chatId);
   
   if (existingGame) {
-    bot.sendMessage(chatId, 'Активная игра уже существует. Сначала завершите текущую игру командой /end_game');
+    bot.sendMessage(chatId, 'Активная игра уже существует. Сначала завершите текущую игру.');
     return;
   }
   

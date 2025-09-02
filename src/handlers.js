@@ -71,21 +71,7 @@ async function handleCreateGame(bot, msg, gameSessions, userStates, playersLimit
   console.log(`Игра создана успешно`);
 }
 
-// Команда завершения игры (только для админа)
-function handleEndGame(bot, msg, gameSessions, userStates) {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
 
-  const gameSession = gameSessions.get(chatId);
-  if (!gameSession) {
-    bot.sendMessage(chatId, 'Активная игра не найдена.');
-    return;
-  }
-
-  gameSession.isActive = false;
-  updateGameMessage(bot, gameSession);
-  // Не отправляем сообщение о завершении - просто обновляем основное сообщение
-}
 
 // Обработка текстовых сообщений
 async function handleMessage(bot, msg, gameSessions, userStates) {
@@ -222,34 +208,27 @@ async function handleCallbackQuery(bot, query, gameSessions, userStates, adminId
   const messageId = query.message.message_id;
   const messageText = query.message.text;
 
-  // Проверяем права администратора для завершения игры
-  if (data === 'end_game') {
-    if (userId !== adminId) {
-      bot.answerCallbackQuery(query.id, { text: 'У вас нет прав для завершения игры.' });
-      return;
+  // Обработка callback запросов
+  let gameSession = gameSessions.get(chatId);
+  
+  // Если состояние не найдено, пытаемся восстановить из текста сообщения
+  if (!gameSession && messageText) {
+    gameSession = GameSession.parseFromMessage(messageText, chatId, messageId);
+    if (gameSession) {
+      gameSessions.set(chatId, gameSession);
+      console.log(`Состояние восстановлено из callback для chatId: ${chatId}`);
     }
-  } else {
-    let gameSession = gameSessions.get(chatId);
-    
-    // Если состояние не найдено, пытаемся восстановить из текста сообщения
-    if (!gameSession && messageText) {
-      gameSession = GameSession.parseFromMessage(messageText, chatId, messageId);
-      if (gameSession) {
-        gameSessions.set(chatId, gameSession);
-        console.log(`Состояние восстановлено из callback для chatId: ${chatId}`);
-      }
-    }
-    
-    if (!gameSession) {
-      bot.answerCallbackQuery(query.id, { text: 'Игра не найдена.' });
-      return;
-    }
-    
-    // Проверяем, что игра активна (кроме команды end_game)
-    if (data !== 'end_game' && !gameSession.isActive) {
-      bot.answerCallbackQuery(query.id, { text: 'Игра уже завершена.' });
-      return;
-    }
+  }
+  
+  if (!gameSession) {
+    bot.answerCallbackQuery(query.id, { text: 'Игра не найдена.' });
+    return;
+  }
+  
+  // Проверяем, что игра активна
+  if (!gameSession.isActive) {
+    bot.answerCallbackQuery(query.id, { text: 'Игра уже завершена.' });
+    return;
   }
 
   const username = query.from.username;
@@ -296,16 +275,7 @@ async function handleCallbackQuery(bot, query, gameSessions, userStates, adminId
       }
       break;
 
-    case 'end_game':
-      const endGameSession = gameSessions.get(chatId);
-      if (endGameSession) {
-        endGameSession.isActive = false;
-        await updateGameMessage(bot, endGameSession);
-        bot.answerCallbackQuery(query.id, { text: 'Игра завершена!' });
-      } else {
-        bot.answerCallbackQuery(query.id, { text: 'Игра не найдена.' });
-      }
-      break;
+
 
     default:
       break;
@@ -348,7 +318,6 @@ async function updateGameMessage(bot, gameSession) {
 module.exports = {
   handleStart,
   handleCreateGame,
-  handleEndGame,
   handleMessage,
   handleCallbackQuery,
   updateGameMessage,
