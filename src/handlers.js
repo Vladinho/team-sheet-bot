@@ -275,7 +275,11 @@ async function handleCallbackQuery(bot, query, gameSessions, userStates, adminId
       }
       break;
 
-
+    case 'refresh_state':
+      // Обновляем состояние игры без записи нового игрока
+      await updateGameMessage(bot, gameSession);
+      bot.answerCallbackQuery(query.id, { text: 'Состояние игры обновлено!' });
+      break;
 
     default:
       break;
