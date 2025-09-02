@@ -83,11 +83,37 @@ class GameSession {
         
         for (const friend of userFriends) {
           // Проверяем, не добавлен ли уже такой друг
-          const existingFriend = this.players.find(p => 
-            p.friendOf === userId && p.firstName === friend.name
-          ) || this.reserve.find(p => 
-            p.friendOf === userId && p.firstName === friend.name
-          );
+          const existingFriend = this.players.find(p => {
+            // Сравниваем friendOf с userId, учитывая возможные типы данных
+            if (typeof p.friendOf === 'number' && typeof userId === 'number') {
+              return p.friendOf === userId && p.firstName === friend.name;
+            } else if (typeof p.friendOf === 'string' && typeof userId === 'number') {
+              // Если friendOf - это имя, а userId - число, нужно найти игрока по userId
+              const mainPlayer = this.players.find(player => player.userId === userId) || 
+                                this.reserve.find(player => player.userId === userId);
+              if (mainPlayer) {
+                const mainPlayerName = mainPlayer.firstName || mainPlayer.username || `User${userId}`;
+                return p.friendOf === mainPlayerName && p.firstName === friend.name;
+              }
+              return false;
+            }
+            return p.friendOf === userId && p.firstName === friend.name;
+          }) || this.reserve.find(p => {
+            // Сравниваем friendOf с userId, учитывая возможные типы данных
+            if (typeof p.friendOf === 'number' && typeof userId === 'number') {
+              return p.friendOf === userId && p.firstName === friend.name;
+            } else if (typeof p.friendOf === 'string' && typeof userId === 'number') {
+              // Если friendOf - это имя, а userId - число, нужно найти игрока по userId
+              const mainPlayer = this.players.find(player => player.userId === userId) || 
+                                this.reserve.find(player => player.userId === userId);
+              if (mainPlayer) {
+                const mainPlayerName = mainPlayer.firstName || mainPlayer.username || `User${userId}`;
+                return p.friendOf === mainPlayerName && p.firstName === friend.name;
+              }
+              return false;
+            }
+            return p.friendOf === userId && p.firstName === friend.name;
+          });
           
           if (!existingFriend) {
             const friendPlayer = {
@@ -113,10 +139,40 @@ class GameSession {
   // Удаляем друзей при удалении основного игрока
   removeFriendsOfPlayer(userId) {
     // Удаляем друзей из основных игроков
-    this.players = this.players.filter(p => p.friendOf !== userId);
+    this.players = this.players.filter(p => {
+      // Сравниваем friendOf с userId, учитывая возможные типы данных
+      if (typeof p.friendOf === 'number' && typeof userId === 'number') {
+        return p.friendOf !== userId;
+      } else if (typeof p.friendOf === 'string' && typeof userId === 'number') {
+        // Если friendOf - это имя, а userId - число, нужно найти игрока по userId
+        const mainPlayer = this.players.find(player => player.userId === userId) || 
+                          this.reserve.find(player => player.userId === userId);
+        if (mainPlayer) {
+          const mainPlayerName = mainPlayer.firstName || mainPlayer.username || `User${userId}`;
+          return p.friendOf !== mainPlayerName;
+        }
+        return true; // Если не нашли игрока, не удаляем
+      }
+      return p.friendOf !== userId;
+    });
     
     // Удаляем друзей из резерва
-    this.reserve = this.reserve.filter(p => p.friendOf !== userId);
+    this.reserve = this.reserve.filter(p => {
+      // Сравниваем friendOf с userId, учитывая возможные типы данных
+      if (typeof p.friendOf === 'number' && typeof userId === 'number') {
+        return p.friendOf !== userId;
+      } else if (typeof p.friendOf === 'string' && typeof userId === 'number') {
+        // Если friendOf - это имя, а userId - число, нужно найти игрока по userId
+        const mainPlayer = this.players.find(player => player.userId === userId) || 
+                          this.reserve.find(player => player.userId === userId);
+        if (mainPlayer) {
+          const mainPlayerName = mainPlayer.firstName || mainPlayer.username || `User${userId}`;
+          return p.friendOf !== mainPlayerName;
+        }
+        return true; // Если не нашли игрока, не удаляем
+      }
+      return p.friendOf !== userId;
+    });
     
     // Перемещаем игроков из резерва, если есть место
     while (this.players.length < this.playersLimit && this.reserve.length > 0) {
@@ -275,7 +331,7 @@ class GameSession {
       const players = [];
       for (const line of playerLines) {
         // Парсим строку с учетом userId в скобках
-        const match = line.match(/^\d+\.\s+(.+?)(?:\s+\(друг\s+(.+?),\s*id:(\d+)\)|\s+\(id:(\d+)\))?$/);
+        const match = line.match(/^\d+\.\s+(.+?)(?:\s+\(друг\s+(.+?),\s*id:([^)]+)\)|\s+\(id:([^)]+)\))?$/);
         if (match) {
           const playerName = match[1].trim();
           const friendOf = match[2];
@@ -283,9 +339,9 @@ class GameSession {
           
           if (playerName && playerName !== '') {
             if (friendOf && userId) {
-              // Это друг с userId
+              // Это друг с userId - сохраняем как строку
               players.push({
-                userId: parseInt(userId), // Преобразуем в число
+                userId: userId, // Оставляем как строку для друзей
                 username: null,
                 firstName: playerName,
                 lastName: null,
@@ -333,7 +389,7 @@ class GameSession {
         
         for (const line of reserveLines) {
           // Парсим строку с учетом userId в скобках
-          const match = line.match(/^\d+\.\s+(.+?)(?:\s+\(друг\s+(.+?),\s*id:(\d+)\)|\s+\(id:(\d+)\))?$/);
+          const match = line.match(/^\d+\.\s+(.+?)(?:\s+\(друг\s+(.+?),\s*id:([^)]+)\)|\s+\(id:([^)]+)\))?$/);
           if (match) {
             const playerName = match[1].trim();
             const friendOf = match[2];
@@ -341,9 +397,9 @@ class GameSession {
             
             if (playerName && playerName !== '') {
               if (friendOf && userId) {
-                // Это друг в резерве с userId
+                // Это друг в резерве с userId - сохраняем как строку
                 reserve.push({
-                  userId: parseInt(userId), // Преобразуем в число
+                  userId: userId, // Оставляем как строку для друзей
                   username: null,
                   firstName: playerName,
                   lastName: null,
