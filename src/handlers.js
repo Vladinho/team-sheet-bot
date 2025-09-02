@@ -134,11 +134,6 @@ async function handleMessage(bot, msg, gameSessions, userStates, friends) {
 
     bot.sendMessage(chatId, `✅ Друг "${friendName}" добавлен в ваш список!`);
     
-    // Сохраняем состояние после изменения друзей
-    if (global.stateManager) {
-      global.stateManager.saveState(gameSessions, userStates, friends);
-    }
-    
     // Обновляем сообщение игры, если есть активная игра
     const gameSession = gameSessions.get(chatId);
     if (gameSession && gameSession.isActive) {
@@ -176,18 +171,12 @@ async function handleMessage(bot, msg, gameSessions, userStates, friends) {
       return;
     }
 
-    console.log(`[DEBUG] Удаление друга: userId=${userId}, friendName="${friendName}"`);
-    console.log(`[DEBUG] Текущее состояние friends:`, Array.from(friends.entries()));
-
     if (!friends.has(userId)) {
-      console.log(`[DEBUG] Список друзей не найден для userId=${userId}`);
       bot.sendMessage(chatId, 'У вас нет списка друзей.');
       return;
     }
 
     const userFriends = friends.get(userId);
-    console.log(`[DEBUG] Текущие друзья для userId=${userId}:`, userFriends);
-    
     const friendIndex = userFriends.findIndex(f => f.name.toLowerCase() === friendName.toLowerCase());
     
     if (friendIndex === -1) {
@@ -198,11 +187,6 @@ async function handleMessage(bot, msg, gameSessions, userStates, friends) {
     // Удаляем друга
     userFriends.splice(friendIndex, 1);
     bot.sendMessage(chatId, `❌ Друг "${friendName}" удален из вашего списка.`);
-    
-    // Сохраняем состояние после изменения друзей
-    if (global.stateManager) {
-      global.stateManager.saveState(gameSessions, userStates, friends);
-    }
     
     // Обновляем сообщение игры, если есть активная игра
     const gameSession = gameSessions.get(chatId);
