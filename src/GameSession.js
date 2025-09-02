@@ -63,7 +63,7 @@ class GameSession {
       const player = this.players[i - 1];
       if (player) {
         if (player.isFriend) {
-          message += `${i}. ${player.firstName} (добавлен пользователем)\n`;
+          message += `${i}. ${player.firstName} (добавлен другим юзером)\n`;
         } else {
           message += `${i}. ${player.firstName || player.username || `User${player.userId}`} (id:${player.userId})\n`;
         }
@@ -77,7 +77,7 @@ class GameSession {
       message += `\n⏳ <b>Резерв:</b>\n`;
       this.reserve.forEach((player, index) => {
         if (player.isFriend) {
-          message += `${index + 1}. ${player.firstName} (добавлен пользователем)\n`;
+          message += `${index + 1}. ${player.firstName} (добавлен другим юзером)\n`;
         } else {
           message += `${index + 1}. ${player.firstName || player.username || `User${player.userId}`} (id:${player.userId})\n`;
         }
@@ -85,9 +85,11 @@ class GameSession {
     }
 
     // Добавляем объяснение по управлению игроками
+    message += `\nДля дополнительного управления записями напишите в ответном сообщении на этот пост:\n\n`;
     message += `• Для добавления игрока: + Имя (например: + Иван)\n`;
     message += `• Для удаления игрока: - Имя (например: - Иван)\n`;
-    
+    message += `• Для удаления своей записи: -\n`;
+
     return message;
   }
 
@@ -170,12 +172,12 @@ class GameSession {
       const players = [];
       for (const line of numberedLines) {
         // Парсим строку с учетом userId в скобках - требуем наличие символов после точки
-        const match = line.match(/^\d+\.\s+(.+?)(?:\s+\(добавлен пользователем\)|\s+\(id:(\d+)\))?$/);
+        const match = line.match(/^\d+\.\s+(.+?)(?:\s+\(добавлен другим юзером\)|\s+\(id:(\d+)\))?$/);
         
         if (match && match[1] && match[1].trim() !== '') {
           const playerName = match[1].trim();
           
-          const isFriend = line.includes('(добавлен пользователем)');
+          const isFriend = line.includes('(добавлен другим юзером)');
           const userId = match[2]; // userId может быть во 2-й группе
           
           if (isFriend) {
@@ -217,10 +219,10 @@ class GameSession {
         
         for (const line of reserveLines) {
           // Парсим строку с учетом userId в скобках - требуем наличие символов после точки
-          const match = line.match(/^\d+\.\s+(.+?)(?:\s+\(добавлен пользователем\)|\s+\(id:(\d+)\))?$/);
+          const match = line.match(/^\d+\.\s+(.+?)(?:\s+\(добавлен другим юзером\)|\s+\(id:(\d+)\))?$/);
           if (match && match[1] && match[1].trim() !== '') {
             const playerName = match[1].trim();
-            const isFriend = line.includes('(добавлен пользователем)');
+            const isFriend = line.includes('(добавлен другим юзером)');
             const userId = match[2]; // userId может быть во 2-й группе
             
             if (isFriend) {
