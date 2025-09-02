@@ -196,6 +196,51 @@ async function handleMessage(bot, msg, gameSessions, userStates) {
     return;
   }
 
+  // Обработка команды отмены записи текущего пользователя
+  if (text === '-') {
+    // Получаем активную игру
+    const gameSession = gameSessions.get(chatId);
+    if (!gameSession || !gameSession.isActive) {
+      bot.sendMessage(chatId, 'Нет активной игры для отмены записи.');
+      return;
+    }
+
+    // Ищем пользователя в списке игроков
+    let playerIndex = gameSession.players.findIndex(p => p.userId === userId);
+    let isMainPlayer = true;
+
+    // Если не найден в основном составе, ищем в резерве
+    if (playerIndex === -1) {
+      playerIndex = gameSession.reserve.findIndex(p => p.userId === userId);
+      isMainPlayer = false;
+    }
+
+    if (playerIndex === -1) {
+      bot.sendMessage(chatId, 'Вы не были записаны на игру.');
+      return;
+    }
+
+    // Удаляем пользователя
+    if (isMainPlayer) {
+      gameSession.players.splice(playerIndex, 1);
+      
+      // Перемещаем первого из резерва, если есть место
+      if (gameSession.reserve.length > 0) {
+        const reservePlayer = gameSession.reserve.shift();
+        gameSession.players.push(reservePlayer);
+      }
+      
+      bot.sendMessage(chatId, '❌ Ваша запись отменена!');
+    } else {
+      gameSession.reserve.splice(playerIndex, 1);
+      bot.sendMessage(chatId, '❌ Ваша запись в резерве отменена!');
+    }
+
+    // Обновляем сообщение игры
+    await updateGameMessage(bot, gameSession);
+    return;
+  }
+
   // Обычные текстовые сообщения не обрабатываются
   // Все команды обрабатываются через bot.onText
 }
@@ -264,16 +309,7 @@ async function handleCallbackQuery(bot, query, gameSessions, userStates, adminId
       bot.answerCallbackQuery(query.id, { text: 'Вы добавлены в резерв!' });
       break;
 
-    case 'unregister':
-      const unregisterGameSession = gameSessions.get(chatId);
-      const removed = unregisterGameSession.removePlayer(userId);
-      if (removed) {
-        await updateGameMessage(bot, unregisterGameSession);
-        bot.answerCallbackQuery(query.id, { text: 'Запись отменена!' });
-      } else {
-        bot.answerCallbackQuery(query.id, { text: 'Вы не были записаны!' });
-      }
-      break;
+
 
     case 'refresh_state':
       // Обновляем состояние игры без записи нового игрока
