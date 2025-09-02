@@ -116,8 +116,7 @@ class GameSession {
     if (this.isActive) {
       // Основная клавиатура
       keyboard.push([
-        { text: '✅ Записаться', callback_data: 'register' },
-        { text: '❌ Отменить запись', callback_data: 'unregister' }
+        { text: '✅ Записаться', callback_data: 'register' }
       ]);
       
       if (this.players.length >= this.playersLimit) {
