@@ -89,8 +89,8 @@ async function handleMessage(bot, msg, gameSessions, userStates) {
   }
 
   // Обработка команд для добавления/удаления игроков
-  const addPlayerMatch = text.match(/^\+\s+(.+)$/);
-  const removePlayerMatch = text.match(/^\-\s+(.+)$/);
+  const addPlayerMatch = text.match(/^\+\s*(.+)$/);
+  const removePlayerMatch = text.match(/^\-\s*(.+)$/);
 
   if (addPlayerMatch) {
     const playerName = addPlayerMatch[1].trim();
