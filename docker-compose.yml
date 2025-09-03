@@ -24,19 +24,27 @@ services:
           memory: 512M
         reservations:
           memory: 256M
-    # Проверка здоровья контейнера
+    # Проверка здоровья контейнера - более агрессивная
     healthcheck:
       test: ["CMD", "node", "-e", "console.log('Health check passed')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     # Логирование
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+    # Критически важные настройки для macOS
+    tty: true
+    stdin_open: true
+    # Предотвращение "засыпания" контейнера
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
     # Для webhook режима (если понадобится)
     # ports:
     #   - "3000:3000"

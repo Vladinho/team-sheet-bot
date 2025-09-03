@@ -71,6 +71,37 @@ async function handleCreateGame(bot, msg, gameSessions, userStates, playersLimit
   console.log(`Игра создана успешно`);
 }
 
+// Обработка команды завершения игры (только для админа)
+async function handleStopGame(bot, msg, gameSessions, userStates) {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  const GROUP_ID = process.env.GROUP_ID ? parseInt(process.env.GROUP_ID) : null;
+
+  console.log(`Завершение игры: chatId=${chatId}`);
+
+  if (GROUP_ID && chatId !== GROUP_ID) {
+    bot.sendMessage(chatId, 'Игры можно завершать только в определенной группе.');
+    return;
+  }
+
+  const gameSession = gameSessions.get(chatId);
+  if (!gameSession) {
+    bot.sendMessage(chatId, 'Игра не найдена.');
+    return;
+  }
+
+  // Завершаем игру
+  gameSession.stopGame();
+  
+  // Обновляем сообщение игры (убираем кнопки)
+  await updateGameMessage(bot, gameSession);
+  
+  // Отправляем сообщение о завершении
+  bot.sendMessage(chatId, '🔚 Игра завершена! Запись на игру закрыта.');
+  
+  console.log(`Игра завершена для chatId: ${chatId}`);
+}
+
 
 
 // Обработка текстовых сообщений
@@ -248,6 +279,39 @@ async function handleMessage(bot, msg, gameSessions, userStates) {
     return;
   }
 
+  // Обработка команды завершения игры (только для админа)
+  if (text.toLowerCase() === 'stop') {
+    const gameSession = gameSessions.get(chatId);
+    if (!gameSession) {
+      bot.sendMessage(chatId, 'Нет активной игры для завершения.');
+      return;
+    }
+
+    if (!gameSession.isActive) {
+      bot.sendMessage(chatId, 'Игра уже завершена.');
+      return;
+    }
+
+    // Проверяем права администратора
+    const ADMIN_ID = parseInt(process.env.ADMIN_ID);
+    if (userId !== ADMIN_ID) {
+      bot.sendMessage(chatId, 'У вас нет прав для завершения игры.');
+      return;
+    }
+
+    // Завершаем игру
+    gameSession.stopGame();
+    
+    // Обновляем сообщение игры (убираем кнопки)
+    await updateGameMessage(bot, gameSession);
+    
+    // Отправляем сообщение о завершении
+    bot.sendMessage(chatId, '🔚 Игра завершена! Запись на игру закрыта.');
+    
+    console.log(`Игра завершена через текстовую команду для chatId: ${chatId}`);
+    return;
+  }
+
   // Обычные текстовые сообщения не обрабатываются
   // Все команды обрабатываются через bot.onText
 }
@@ -368,5 +432,6 @@ module.exports = {
   handleMessage,
   handleCallbackQuery,
   updateGameMessage,
-  restoreStateFromMessage
+  restoreStateFromMessage,
+  handleStopGame
 };

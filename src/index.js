@@ -7,7 +7,8 @@ const {
   handleCreateGame, 
   handleMessage, 
   handleCallbackQuery,
-  restoreStateFromMessage
+  restoreStateFromMessage,
+  handleStopGame
 } = require('./handlers');
 
 // Конфигурация
@@ -121,6 +122,32 @@ function setupBotHandlers() {
       'Отправьте текст сообщения с записью на игру для восстановления состояния.\n\n' +
       'Скопируйте и отправьте текст основного сообщения с записью на игру.'
     );
+  });
+
+  // Команда завершения игры (только для админа)
+  bot.onText(/\/stop/, (msg) => {
+    const userId = msg.from.id;
+    
+    if (userId !== ADMIN_ID) {
+      bot.sendMessage(msg.chat.id, 'У вас нет прав для завершения игры.');
+      return;
+    }
+    
+    const chatId = msg.chat.id;
+    const gameSession = gameSessions.get(chatId);
+    
+    if (!gameSession) {
+      bot.sendMessage(chatId, 'Нет активной игры для завершения.');
+      return;
+    }
+    
+    if (!gameSession.isActive) {
+      bot.sendMessage(chatId, 'Игра уже завершена.');
+      return;
+    }
+    
+    // Завершаем игру
+    handleStopGame(bot, msg, gameSessions, userStates);
   });
 
   // Обработка текстовых сообщений
