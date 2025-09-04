@@ -162,11 +162,14 @@ class GameSession {
     const keyboard = [];
     
     if (this.isActive) {
-      // Основная клавиатура
-      keyboard.push([
-        { text: '✅ Записаться', callback_data: 'register' }
-      ]);
+      // Основная клавиатура - показываем кнопку "Записаться" только если есть свободные места
+      if (this.players.length < this.playersLimit) {
+        keyboard.push([
+          { text: '✅ Записаться', callback_data: 'register' }
+        ]);
+      }
       
+      // Показываем кнопку "Записаться в резерв" только когда основной состав заполнен
       if (this.players.length >= this.playersLimit) {
         keyboard.push([
           { text: '⏳ Записаться в резерв', callback_data: 'register_reserve' }
