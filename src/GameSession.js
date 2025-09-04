@@ -70,7 +70,25 @@ class GameSession {
         if (player.isFriend) {
           message += `${i}. ${player.firstName} (добавлен другим юзером)\n`;
         } else {
-          message += `${i}. ${player.firstName || player.username || `User${player.userId}`} (id:${player.userId})\n`;
+          // Формируем полное имя: Имя + Фамилия
+          let fullName = '';
+          if (player.firstName && player.lastName) {
+            fullName = `${player.firstName} ${player.lastName}`;
+          } else if (player.firstName) {
+            fullName = player.firstName;
+          } else if (player.username) {
+            fullName = player.username;
+          } else {
+            fullName = `User${player.userId}`;
+          }
+          
+          // Добавляем никнейм если есть
+          let usernamePart = '';
+          if (player.username) {
+            usernamePart = ` @${player.username}`;
+          }
+          
+          message += `${i}. ${fullName} (id:${player.userId}${usernamePart})\n`;
         }
       } else {
         message += `${i}.\n`;
@@ -84,7 +102,25 @@ class GameSession {
         if (player.isFriend) {
           message += `${index + 1}. ${player.firstName} (добавлен другим юзером)\n`;
         } else {
-          message += `${index + 1}. ${player.firstName || player.username || `User${player.userId}`} (id:${player.userId})\n`;
+          // Формируем полное имя: Имя + Фамилия
+          let fullName = '';
+          if (player.firstName && player.lastName) {
+            fullName = `${player.firstName} ${player.lastName}`;
+          } else if (player.firstName) {
+            fullName = player.firstName;
+          } else if (player.username) {
+            fullName = player.username;
+          } else {
+            fullName = `User${player.userId}`;
+          }
+          
+          // Добавляем никнейм если есть
+          let usernamePart = '';
+          if (player.username) {
+            usernamePart = ` @${player.username}`;
+          }
+          
+          message += `${index + 1}. ${fullName} (id:${player.userId}${usernamePart})\n`;
         }
       });
     }
@@ -95,11 +131,6 @@ class GameSession {
     message += `• Для удаления друга: - Имя (например: - Иван)\n`;
     message += `• Для удаления своей записи: -\n`;
     
-    // Добавляем информацию о команде завершения игры (только для админов)
-    if (this.isActive) {
-      message += `• Для завершения игры: stop (только для администратора)\n`;
-    }
-
     // Добавляем информацию о завершении игры, если игра неактивна
     if (!this.isActive) {
       message += `\n🔚 <b>Игра завершена!</b> Запись на игру закрыта.\n`;
